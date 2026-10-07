@@ -1,9 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import timeit
+from numba import jit
 
 
-_default_rng = np.random.default_rng(456)
+_default_rng = np.random.default_rng(617142514280)
 
 
 
@@ -79,6 +80,7 @@ def energia_tot_1(config:np.ndarray) -> float:
     a3 = np.roll(config,1,1)
     return -(np.cos(config-a1)*2+np.cos(config-a3)*2).sum()
 
+@jit(cache=True)
 def energia_tot_2(ltc:np.ndarray,J:float=1) -> float:
     """
     Funzione per il calcolo dell'energia di un data configurazione.
@@ -110,11 +112,11 @@ def delta_energia(ltc:np.ndarray,pos:np.ndarray,T:float,
     a3 = -J*(np.cos(ltc[x,y]-ltc[x,(y+1)%L]))
     a4 = -J*(np.cos(ltc[x,y]-ltc[x,(y-1)%L]))
 
-
+@jit(cache=True)
 def MC_step(ltc:np.ndarray, T:float, J:float=1,
             rng:np.random.Generator=_default_rng):
     L = ltc.shape[0]
-    x,y = rng.integers(0,[L,L])
+    x,y = rng.integers(0,L,size=2)
     delta_theta = rng.uniform(-np.pi/4,np.pi/4)
     t_o = ltc[x,y]
     t_n = t_o + delta_theta
@@ -124,51 +126,52 @@ def MC_step(ltc:np.ndarray, T:float, J:float=1,
               np.cos(t_n-ltc[x,(y+1)%L])+np.cos(t_n-ltc[x,(y-1)%L]))
     if (E_n - E_o) <= 0:
         ltc[x,y] = t_n
-        return
-    elif rng.uniform() <= np.e**((E_o-E_n)/T):
+    elif (rng.uniform() <= np.e**((E_o-E_n)/T)):
         ltc[x,y] = t_n
-        return
-    else:  return
 
 
-
-def _main(L:int,T:float=1,J:float=1):
-    asd = init(L)
+@jit(cache=True)
+def _main(L:int,T:float=1,steps:int=1_000_000,J:float=1,rng=_default_rng):
+    asd = rng.uniform(0, 2*np.pi, (L,L))
     # # print(asd)
     # print(energia_tot_2(asd))
     # print(magnetizzazione_tot(asd))
     # print(np.isclose(energia_tot_0(asd),energia_tot_2(asd)))
     # print(timeit.timeit(lambda:magnetizzazione_tot(asd),number=1))
     # print(timeit.timeit(lambda:energia_tot_2(asd),number=1))
-    en_vec1 = np.zeros(int(5e4))
-    for i in range(int(5e4)):
-        MC_step(asd,T,J)
+    en_vec1 = np.zeros(steps)
+    for i in range(steps):
+        MC_step(asd,T,J,rng)
         en_vec1[i] = energia_tot_2(asd,J)
-    asd = init(L)
-    en_vec2 = np.zeros(int(5e4))
-    for i in range(int(5e4)):
-        MC_step(asd,T,J)
+    asd = rng.uniform(0,2*np.pi,(L,L))
+    en_vec2 = np.zeros(steps)
+    for i in range(steps):
+        MC_step(asd,T+1,J,rng)
         en_vec2[i] = energia_tot_2(asd,J)
-    asd = init(L)
-    en_vec3 = np.zeros(int(5e4))
-    for i in range(int(5e4)):
-        MC_step(asd,T,J)
+    asd = rng.uniform(0, 2*np.pi, (L,L))
+    en_vec3 = np.zeros(steps)
+    for i in range(steps):
+        MC_step(asd,T+5,J,rng)
         en_vec3[i] = energia_tot_2(asd,J)
     
-    # plt.plot(en_vec3/L**2,'r')
-    # plt.plot(en_vec2/L**2,'g')
-    # plt.plot(en_vec1/L**2,'y')
-    # plt.grid()
-    # plt.show()
+    
     # for i in range(10000):
     #     MC_step(asd,1)
     #     en_vec[i]=energia_tot_2(asd)
     # print(en_vec.mean(),en_vec.mean()/L**2)
     # print(asd)
-    return 0
-
+    return en_vec1,en_vec2,en_vec3
 
 # _main(10)
 
 if __name__=="__main__":
-    _main(10,0.1,1)
+    L=10
+    en_vec1,en_vec2,en_vec3  = _main(L,0.2,500_000,1,_default_rng)
+    print(en_vec1.mean()/L**2)
+    print(en_vec2.mean()/L**2)
+    print(en_vec3.mean()/L**2)
+    plt.plot(en_vec3/L**2,'r')
+    plt.plot(en_vec2/L**2,'g')
+    plt.plot(en_vec1/L**2,'y')
+    plt.grid()
+    plt.show()
