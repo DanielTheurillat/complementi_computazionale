@@ -137,6 +137,20 @@ def en_tot_4(ltc,J=1):
     return s*-2*J
 
 @jit()
+def en_mat(ltc,J=1):
+    out = np.zeros_like(ltc,np.float64)
+    out[1:,:] += np.cos(ltc[1:,:]-ltc[:-1,:])
+    out[:-1,:] += np.cos(ltc[:-1,:]-ltc[1:,:])
+    out[:,1:] += np.cos(ltc[:,1:]-ltc[:,:-1])
+    out[:,:-1] += np.cos(ltc[:,:-1]-ltc[:,1:])
+    out[0,:] += np.cos(ltc[0,:]-ltc[-1,:])
+    out[-1,:] += np.cos(ltc[0,:]-ltc[-1,:])
+    out[:,0] += np.cos(ltc[:,0]-ltc[:,-1])
+    out[:,-1] += np.cos(ltc[:,0]-ltc[:,-1])
+    return out*-J
+
+
+@jit()
 def magnetizzazione_tot(ltc:np.ndarray) -> float:
     return np.sqrt(np.cos(ltc).sum()**2+np.sin(ltc).sum()**2)
 
@@ -268,27 +282,46 @@ def test5(ltc,n,rng):
         m[i] = magnetizzazione_tot(ltc)
     return e,m
 
+@jit()
+def test6(ltc,n):
+    for i in range(n):
+        x=en_mat(ltc)
+    return x
+
+@jit()
+def test7(ltc,n):
+    for i in range(n):
+        x=en_tot_4(ltc)
+    return x
+
 if __name__=="__main__":
-    L=50
+    L=500
     asd = rng.uniform(0,2*np.pi,(L,L))
-    MC_step(asd,1,1,rng)
-    testm1(asd,2)
-    testm2(asd,2,rng)
+    print(en_tot_4(asd))
+    print(en_mat(asd).sum())
+    test6(asd,2)
+    test7(asd,2)
+    print('6',timeit.timeit(lambda: test6(asd,100),number=1))
+    print('7',timeit.timeit(lambda: test7(asd,100),number=1))
+
+    # MC_step(asd,1,1,rng)
+    # testm1(asd,2)
+    # testm2(asd,2,rng)
     # print(energia_tot_2(asd))
     # print(energia_tot_3(asd))
     # print(en_tot_4(asd))
     # test2(asd,2,rng)
     # test3(asd,2,rng)
-    test4(asd,2,rng)
-    test5(asd,2,rng)
-    print('m1',timeit.timeit(lambda: testm1(asd,10000),number=1))
-    print('m2',timeit.timeit(lambda: testm2(asd,10000,rng),number=1))
-    print('5',timeit.timeit(lambda: test5(asd,10000,rng),number=1))
+    # test4(asd,2,rng)
+    # test5(asd,2,rng)
+    # print('m1',timeit.timeit(lambda: testm1(asd,10000),number=1))
+    # print('m2',timeit.timeit(lambda: testm2(asd,10000,rng),number=1))
+    # print('5',timeit.timeit(lambda: test5(asd,10000,rng),number=1))
 
     # print('2',timeit.timeit(lambda: test(asd,10000,rng),number=1))
     # print('2',timeit.timeit(lambda: test2(asd,10000,rng),number=1))
     # print('3',timeit.timeit(lambda: test3(asd,10000,rng),number=1))
-    print('4',timeit.timeit(lambda: test4(asd,10000,rng),number=1))
+    # print('4',timeit.timeit(lambda: test4(asd,10000,rng),number=1))
     # en_vec1,en_vec2,en_vec3  = _main(L,0.2,500_000,1,rng)
     # print(en_vec1.mean()/L**2)
     # print(en_vec2.mean()/L**2)
