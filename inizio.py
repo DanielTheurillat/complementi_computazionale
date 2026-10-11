@@ -17,69 +17,6 @@ def init(L:int,
 
     return rng.uniform(low=0, high=2*np.pi, size=(L,L))
 
-
-def energia_tot_0(config:np.ndarray) -> float:
-    L = config.shape[0]
-    E_tot = 0.
-    for i in range(L):
-        if i==0:
-            for j in range(L):
-                if j==0:
-                    E_tot -= (np.cos(config[0,0]-config[0,1])+
-                              np.cos(config[0,0]-config[1,0])+
-                              np.cos(config[0,0]-config[0,L-1])+
-                              np.cos(config[0,0]-config[L-1,0]))
-                elif j==L-1:
-                    E_tot -= (np.cos(config[0,L-1]-config[0,L-2])+
-                              np.cos(config[0,L-1]-config[1,L-1])+
-                              np.cos(config[0,L-1]-config[0,0])+
-                              np.cos(config[0,L-1]-config[L-1,L-1]))
-                else:
-                    E_tot -= (np.cos(config[0,j]-config[0,j+1])+
-                              np.cos(config[0,j]-config[1,j])+
-                              np.cos(config[0,j]-config[0,j-1])+
-                              np.cos(config[0,j]-config[L-1,j]))
-        elif i==L-1:
-            for j in range(L):
-                if j==0:
-                    E_tot -= (np.cos(config[L-1,0]-config[L-1,1])+
-                                np.cos(config[L-1,0]-config[L-2,0])+
-                                np.cos(config[L-1,0]-config[L-1,L-1])+
-                                np.cos(config[L-1,0]-config[0,0]))
-                elif j==L-1:
-                    E_tot -= (np.cos(config[L-1,L-1]-config[L-1,L-2])+
-                                np.cos(config[L-1,L-1]-config[L-2,L-1])+
-                                np.cos(config[L-1,L-1]-config[L-1,0])+
-                                np.cos(config[L-1,L-1]-config[0,L-1]))
-                else:
-                    E_tot -= (np.cos(config[L-1,j]-config[L-1,j+1])+
-                                np.cos(config[L-1,j]-config[L-2,j])+
-                                np.cos(config[L-1,j]-config[L-1,j-1])+
-                                np.cos(config[L-1,j]-config[0,j]))
-        else:
-             for j in range(L):
-                if j==0:
-                    E_tot -= (np.cos(config[i,0]-config[i,1])+
-                            np.cos(config[i,0]-config[i+1,0])+
-                            np.cos(config[i,0]-config[i,L-1])+
-                            np.cos(config[i,0]-config[i-1,0]))
-                elif j==L-1:
-                    E_tot -= (np.cos(config[i,L-1]-config[i,L-2])+
-                            np.cos(config[i,L-1]-config[i+1,L-1])+
-                            np.cos(config[i,L-1]-config[i,0])+
-                            np.cos(config[i,L-1]-config[i-1,L-1]))
-                else:
-                    E_tot -= (np.cos(config[i,j]-config[i,j+1])+
-                            np.cos(config[i,j]-config[i+1,j])+
-                            np.cos(config[i,j]-config[i,j-1])+
-                            np.cos(config[i,j]-config[i-1,j]))
-    return E_tot
-
-def energia_tot_1(config:np.ndarray) -> float:
-    a1 = np.roll(config,1,0)
-    a3 = np.roll(config,1,1)
-    return -(np.cos(config-a1)*2+np.cos(config-a3)*2).sum()
-
 @jit()
 def energia_tot_2(ltc:np.ndarray,J:float=1) -> float:
     """
@@ -101,30 +38,8 @@ def energia_tot_2(ltc:np.ndarray,J:float=1) -> float:
             np.cos(ltc[0,:]-ltc[-1,:]).sum()+
             np.cos(ltc[:,0]-ltc[:,-1]).sum())*-2*J
 
-
-@jit()
-def energia_tot_3(ltc:np.ndarray,J:float=1#,do_sum:bool=True
-                  )-> float:
-    L = ltc.shape[0]
-    en_ltc = np.empty_like(ltc,dtype=np.float64)
-    for i in prange(L):
-        for j in prange(L):
-            en_ltc[i,j] = (np.cos(ltc[i,j]-ltc[(i+1)%L,j])+
-                      np.cos(ltc[i,j]-ltc[(i-1)%L,j])+
-                      np.cos(ltc[i,j]-ltc[i,(j+1)%L])+
-                      np.cos(ltc[i,j]-ltc[i,(j-1)%L]))*-J
-    #if do_sum:
-    s=0
-    for i in prange(L):
-        for j in prange(L):
-            s += en_ltc[i,j]
-
-    return s
-    # else:
-    #     return en_ltc
-
-@jit()
-def en_tot_4(ltc,J=1):
+@jit(cache=True)
+def en_tot_4(ltc,J=1.):
     s = 0
     L = ltc.shape[0]
     for i in range(L):
@@ -151,24 +66,32 @@ def en_mat(ltc,J=1):
 
 
 @jit()
-def magnetizzazione_tot(ltc:np.ndarray) -> float:
+def magn_tot1(ltc:np.ndarray) -> float:
     return np.sqrt(np.cos(ltc).sum()**2+np.sin(ltc).sum()**2)
 
-def delta_energia(ltc:np.ndarray,pos:np.ndarray,T:float,
-                  J:float=1,rng=rng):
-    x,y = pos
-    L = ltc.shape[0]
-    a1 = -J*(np.cos(ltc[x,y]-ltc[(x+1)%L,y]))
-    a2 = -J*(np.cos(ltc[x,y]-ltc[(x-1)%L,y]))
-    a3 = -J*(np.cos(ltc[x,y]-ltc[x,(y+1)%L]))
-    a4 = -J*(np.cos(ltc[x,y]-ltc[x,(y-1)%L]))
-
 @jit()
+def magn_tot2(ltc:np.ndarray) -> float:
+    L = ltc.shape[0]
+    mx,my = 0,0
+    for i in range(L):
+        for j in range(L):
+            mx += np.cos(ltc[i,j])
+            my += np.sin(ltc[i,j])
+    return np.sqrt(mx**2+my**2)
+
+
+def cal_spec(en_vec:np.ndarray,T:float,start:int=0):
+    return ((en_vec[start:]**2).mean()-(en_vec[start:].mean())**2)/T**2
+
+
+
+
+@jit(cache=True)
 def MC_step(ltc:np.ndarray, T:float, J:float=1,
             rng:np.random.Generator=rng):
     L = ltc.shape[0]
     x,y = rng.integers(0,L,size=2)
-    delta_theta = rng.uniform(-np.pi/4,np.pi/4)
+    delta_theta = rng.normal(0,np.pi/10)   #rng.uniform(-np.pi/4,np.pi/4)
     t_o = ltc[x,y]
     t_n = t_o + delta_theta
     E_o = -2*J*(np.cos(t_o-ltc[(x+1)%L,y])+np.cos(t_o-ltc[(x-1)%L,y])+
@@ -181,37 +104,14 @@ def MC_step(ltc:np.ndarray, T:float, J:float=1,
         ltc[x,y] = t_n
 
 
-# @jit()
+@jit(cache=True)
 def _main(L:int,T:float=1,steps:int=1_000_000,J:float=1,rng=rng):
     spin_lattice = rng.uniform(0, 2*np.pi, (L,L))
-    # # print(spin_lattice)
-    # print(energia_tot_2(spin_lattice))
-    # print(magnetizzazione_tot(spin_lattice))
-    # print(np.isclose(energia_tot_0(spin_lattice),energia_tot_2(spin_lattice)))
-    # print(timeit.timeit(lambda:magnetizzazione_tot(spin_lattice),number=1))
-    # print(timeit.timeit(lambda:energia_tot_2(spin_lattice),number=1))
     en_vec1 = np.zeros(steps)
     for i in range(steps):
         MC_step(spin_lattice,T,J,rng)
-        en_vec1[i] = energia_tot_2(spin_lattice,J)
-    spin_lattice = rng.uniform(0,2*np.pi,(L,L))
-    en_vec2 = np.zeros(steps)
-    for i in range(steps):
-        MC_step(spin_lattice,T+1,J,rng)
-        en_vec2[i] = energia_tot_2(spin_lattice,J)
-    spin_lattice = rng.uniform(0, 2*np.pi, (L,L))
-    en_vec3 = np.zeros(steps)
-    for i in range(steps):
-        MC_step(spin_lattice,T+5,J,rng)
-        en_vec3[i] = energia_tot_2(spin_lattice,J)
-    
-    
-    # for i in range(10000):
-    #     MC_step(spin_lattice,1)
-    #     en_vec[i]=energia_tot_2(spin_lattice)
-    # print(en_vec.mean(),en_vec.mean()/L**2)
-    # print(spin_lattice)
-    return en_vec1,en_vec2,en_vec3
+        en_vec1[i] = en_tot_4(spin_lattice,J)
+    return en_vec1
 
 # _main(10)
 # @jit()
@@ -221,12 +121,10 @@ def simul(L:int,T:float,steps:int,J:float=1,
     spin_lattice = rng.uniform(0,2*np.pi,(L,L))
     en_vec = np.empty(steps+term_steps,dtype=float)
     magn_vec = np.empty(steps+term_steps,dtype=float)
-    cv_vec = np.empty(steps+term_steps,dtype=float)
-    chi_vec = np.empty(steps+term_steps,dtype=float)
     if term_steps:
         for i in range(term_steps):
             en_vec[i] = energia_tot_2(spin_lattice,J)
-            magn_vec[i] = magnetizzazione_tot(spin_lattice)
+            magn_vec[i] = magn_tot1(spin_lattice)
             # cv_vec[i] = calore_spec_V(spin_lattice)
 
 @jit()
@@ -236,41 +134,18 @@ def test(ltc,n,rng):
     return ltc
 
 @jit()
-def test2(ltc,n,rng):
-    e = np.empty(n,float)
-    for i in range(n):
-        MC_step(ltc,1,rng=rng)
-        e[i] = energia_tot_2(ltc)
-    return e
-
-@jit()
-def test3(ltc,n,rng):
-    e = np.empty(n,float)
-    for i in range(n):
-        MC_step(ltc,1,rng=rng)
-        e[i] = energia_tot_3(ltc)
-    return e
-        
-@jit()
-def test4(ltc,n,rng):
-    e = np.empty(n,float)
-    for i in range(n):
-        MC_step(ltc,1,rng=rng)
-        e[i] = en_tot_4(ltc)
-    return e
-
-@jit()
-def testm1(ltc,n):
-    m = np.empty(n,float)
-    for i in range(n):
-        m[i] = magnetizzazione_tot(ltc)
-
-@jit()
 def testm2(ltc,n,rng):
     m = np.empty(n,float)
     for i in range(n):
         MC_step(ltc,1,rng=rng)
-        m[i] = magnetizzazione_tot(ltc)
+        m[i] = magn_tot1(ltc)
+
+@jit()
+def testm3(ltc,n,rng):
+    m = np.empty(n,float)
+    for i in range(n):
+        MC_step(ltc,1,rng=rng)
+        m[i] = magn_tot2(ltc)
 
 @jit()
 def test5(ltc,n,rng):
@@ -279,49 +154,27 @@ def test5(ltc,n,rng):
     for i in range(n):
         MC_step(ltc,1,rng=rng)
         e[i] = en_tot_4(ltc)
-        m[i] = magnetizzazione_tot(ltc)
+        m[i] = magn_tot1(ltc)
     return e,m
 
-@jit()
-def test6(ltc,n):
-    for i in range(n):
-        x=en_mat(ltc)
-    return x
-
-@jit()
-def test7(ltc,n):
-    for i in range(n):
-        x=en_tot_4(ltc)
-    return x
-
 if __name__=="__main__":
-    L=500
-    asd = rng.uniform(0,2*np.pi,(L,L))
-    print(en_tot_4(asd))
-    print(en_mat(asd).sum())
-    test6(asd,2)
-    test7(asd,2)
-    print('6',timeit.timeit(lambda: test6(asd,100),number=1))
-    print('7',timeit.timeit(lambda: test7(asd,100),number=1))
-
-    # MC_step(asd,1,1,rng)
-    # testm1(asd,2)
+    L=20
+    T=0.5
+    en_out = _main(L,T,steps=1_500_000,rng=rng)/L**2
+    print(en_out[500_000:].mean())
+    print(cal_spec(en_out,T,500_000)*L**2)
+    plt.plot(en_out)
+    plt.grid()
+    plt.show()
+    # asd = rng.uniform(0,2*np.pi,(L,L))
+    # print(magn_tot1(asd))
+    # print(magn_tot2(asd))
+    # # MC_step(asd,1,1,rng)
     # testm2(asd,2,rng)
-    # print(energia_tot_2(asd))
-    # print(energia_tot_3(asd))
-    # print(en_tot_4(asd))
-    # test2(asd,2,rng)
-    # test3(asd,2,rng)
-    # test4(asd,2,rng)
-    # test5(asd,2,rng)
-    # print('m1',timeit.timeit(lambda: testm1(asd,10000),number=1))
-    # print('m2',timeit.timeit(lambda: testm2(asd,10000,rng),number=1))
-    # print('5',timeit.timeit(lambda: test5(asd,10000,rng),number=1))
+    # testm3(asd,2,rng)
+    # print('m2',timeit.timeit(lambda: testm2(asd.copy(),100,rng),number=1))
+    # print('m3',timeit.timeit(lambda: testm3(asd.copy(),100,rng),number=1))
 
-    # print('2',timeit.timeit(lambda: test(asd,10000,rng),number=1))
-    # print('2',timeit.timeit(lambda: test2(asd,10000,rng),number=1))
-    # print('3',timeit.timeit(lambda: test3(asd,10000,rng),number=1))
-    # print('4',timeit.timeit(lambda: test4(asd,10000,rng),number=1))
     # en_vec1,en_vec2,en_vec3  = _main(L,0.2,500_000,1,rng)
     # print(en_vec1.mean()/L**2)
     # print(en_vec2.mean()/L**2)

@@ -13,7 +13,7 @@ def en_tot(ltc:np.ndarray[tuple[int,int],np.dtype[np.float64]],
 
     :params ltc: Matrice della configurazione di cui si vuole calcolare
         l'energia totale. Deve essere quadrata. Ogni entrata della matrice
-        corrisponde all'angolo dello spin in quella poszione del lattice.
+        corrisponde all'angolo dello spin in quella posizione del lattice.
     :type ltc: ndarray
 
     :type J: float
@@ -41,7 +41,7 @@ def en_mat(ltc:np.ndarray[tuple[int,int],np.dtype[np.float64]],
 
     :params ltc: Matrice della configurazione di cui si vuole calcolare
         l'energia per sito. Deve essere quadrata. Ogni entrata della matrice
-        corrisponde all'angolo dello spin in quella poszione del lattice.
+        corrisponde all'angolo dello spin in quella posizione del lattice.
     :type ltc: ndarray
     
     :type J: float
@@ -60,3 +60,25 @@ def en_mat(ltc:np.ndarray[tuple[int,int],np.dtype[np.float64]],
     out[:,0] += np.cos(ltc[:,0]-ltc[:,-1])
     out[:,-1] += np.cos(ltc[:,0]-ltc[:,-1])
     return out*-J
+
+
+@jit()
+def magn_tot(ltc:np.ndarray) -> float:
+    """
+    Calcolo del modulo di Magnetizzazione totale.
+
+    :param ltc: Matrice della configurazione di cui si vuole calcolare
+        la magnetizzazione. Deve essere quadrata. Ogni entrata della matrice
+        corrisponde all'angolo dello spin in quella posizione del lattice.
+    :type ltc: ndarray
+
+    :return: Modulo della magnetizzazione totale.
+    :rtype: float
+    """
+    L = ltc.shape[0]
+    mx,my = 0,0
+    for i in range(L):
+        for j in range(L):
+            mx += np.cos(ltc[i,j])
+            my += np.sin(ltc[i,j])
+    return np.sqrt(mx**2+my**2)
