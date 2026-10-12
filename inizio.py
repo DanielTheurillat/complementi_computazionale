@@ -49,7 +49,7 @@ def en_tot_4(ltc,J=1.):
         s += np.cos(ltc[0,i]-ltc[-1,i])
         s += np.cos(ltc[i,0]-ltc[i,-1])
 
-    return s*-2*J
+    return s*-J
 
 @jit()
 def en_mat(ltc,J=1):
@@ -79,9 +79,28 @@ def magn_tot2(ltc:np.ndarray) -> float:
             my += np.sin(ltc[i,j])
     return np.sqrt(mx**2+my**2)
 
+@jit()
+def magn_tot3(ltc:np.ndarray) -> tuple[float,float]:
+    return np.cos(ltc).sum(),np.sin(ltc).sum()
 
-def cal_spec(en_vec:np.ndarray,T:float,start:int=0):
-    return ((en_vec[start:]**2).mean()-(en_vec[start:].mean())**2)/T**2
+@jit()
+def magn_tot4(ltc:np.ndarray) -> tuple[float,float]:
+    L = ltc.shape[0]
+    mx,my = 0,0
+    for i in range(L):
+        for j in range(L):
+            mx += np.cos(ltc[i,j])
+            my += np.sin(ltc[i,j])
+    return mx,my
+
+
+@jit()
+def cal_spec(en_vec:np.ndarray,T:float,n_t:int=0):
+    return ((en_vec[n_t:]**2).mean()-(en_vec[n_t:].mean())**2)/T**2
+
+@jit()
+def susc_magn(magn_vec:np.ndarray,T:float,n_t:int=0):
+    return ((magn_vec[n_t:]**2).mean()-(magn_vec[n_t:].mean())**2)/T
 
 
 
@@ -107,11 +126,13 @@ def MC_step(ltc:np.ndarray, T:float, J:float=1,
 @jit(cache=True)
 def _main(L:int,T:float=1,steps:int=1_000_000,J:float=1,rng=rng):
     spin_lattice = rng.uniform(0, 2*np.pi, (L,L))
-    en_vec1 = np.zeros(steps)
+    en_vec1 = np.zeros(steps,np.float64)
+    mxy_vec = np.zeros((steps,2),np.float64)
     for i in range(steps):
         MC_step(spin_lattice,T,J,rng)
         en_vec1[i] = en_tot_4(spin_lattice,J)
-    return en_vec1
+        mxy_vec[i] = magn_tot4(spin_lattice)
+    return en_vec1,mxy_vec
 
 # _main(10)
 # @jit()
@@ -148,6 +169,23 @@ def testm3(ltc,n,rng):
         m[i] = magn_tot2(ltc)
 
 @jit()
+def testm4(ltc,n,rng):
+    m = np.empty((n,2),float)
+    for i in range(n):
+        MC_step(ltc,1,rng=rng)
+        m[i] = magn_tot3(ltc)
+    return m
+
+@jit()
+def testm5(ltc,n,rng):
+    m = np.empty((n,2),float)
+    for i in range(n):
+        MC_step(ltc,1,rng=rng)
+        m[i] = magn_tot4(ltc)
+    return m
+
+
+@jit()
 def test5(ltc,n,rng):
     e = np.empty(n,float)
     m = np.empty(n,float)
@@ -157,23 +195,32 @@ def test5(ltc,n,rng):
         m[i] = magn_tot1(ltc)
     return e,m
 
+@jit(parallel=True)
+def sim(L:int,n_T,rng):
+    T_vec = np.linspace(0.1,4,n_T)
+    for i in prange(n_T):
+        T = T_vec[i]
+        e,mxy = _main(L,T,1_000_000,rng=rng)
+        m_tot = np.sqrt(mxy[:,0]**2+mxy[:,1]**2)
+        print('\nT=',T)
+        print('e =',e[300_000:].mean()/L**2)
+        print('Cv =',cal_spec(e,T,300_000)/L**2)
+        print('M =',m_tot[300_000:].mean()/L**2)
+        print('chi =',susc_magn(m_tot,T,300_000))
+
+
 if __name__=="__main__":
     L=20
-    T=0.5
-    en_out = _main(L,T,steps=1_500_000,rng=rng)/L**2
-    print(en_out[500_000:].mean())
-    print(cal_spec(en_out,T,500_000)*L**2)
-    plt.plot(en_out)
-    plt.grid()
-    plt.show()
-    # asd = rng.uniform(0,2*np.pi,(L,L))
+    # T=0.1
+    sim(L,20,rng)    
+
     # print(magn_tot1(asd))
     # print(magn_tot2(asd))
     # # MC_step(asd,1,1,rng)
-    # testm2(asd,2,rng)
-    # testm3(asd,2,rng)
-    # print('m2',timeit.timeit(lambda: testm2(asd.copy(),100,rng),number=1))
-    # print('m3',timeit.timeit(lambda: testm3(asd.copy(),100,rng),number=1))
+    # testm4(asd,2,rng)
+    # testm5(asd,2,rng)
+    # print('m4',timeit.timeit(lambda: testm4(asd.copy(),10000,rng),number=1))
+    # print('m5',timeit.timeit(lambda: testm5(asd.copy(),10000,rng),number=1))
 
     # en_vec1,en_vec2,en_vec3  = _main(L,0.2,500_000,1,rng)
     # print(en_vec1.mean()/L**2)

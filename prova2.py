@@ -30,7 +30,7 @@ def en_tot(ltc:np.ndarray[tuple[int,int],np.dtype[np.float64]],
             s += np.cos(ltc[j,i]-ltc[j+1,i])
         s += np.cos(ltc[0,i]-ltc[-1,i])
         s += np.cos(ltc[i,0]-ltc[i,-1])
-    return s*-2*J
+    return s*-J
 
 
 @jit()
@@ -63,17 +63,17 @@ def en_mat(ltc:np.ndarray[tuple[int,int],np.dtype[np.float64]],
 
 
 @jit()
-def magn_tot(ltc:np.ndarray) -> float:
+def magn_tot_xy(ltc:np.ndarray) -> tuple[float,float]:
     """
-    Calcolo del modulo di Magnetizzazione totale.
+    Calcolo della magnetizzazione lungo i due assi.
 
     :param ltc: Matrice della configurazione di cui si vuole calcolare
         la magnetizzazione. Deve essere quadrata. Ogni entrata della matrice
         corrisponde all'angolo dello spin in quella posizione del lattice.
     :type ltc: ndarray
 
-    :return: Modulo della magnetizzazione totale.
-    :rtype: float
+    :return: Valore della magnetizzazione lungo l'asse x e l'asse y.
+    :rtype: float,float
     """
     L = ltc.shape[0]
     mx,my = 0,0
@@ -81,4 +81,4 @@ def magn_tot(ltc:np.ndarray) -> float:
         for j in range(L):
             mx += np.cos(ltc[i,j])
             my += np.sin(ltc[i,j])
-    return np.sqrt(mx**2+my**2)
+    return mx,my
