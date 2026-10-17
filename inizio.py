@@ -49,7 +49,7 @@ def en_tot_4(ltc,J=1.):
         s += np.cos(ltc[0,i]-ltc[-1,i])
         s += np.cos(ltc[i,0]-ltc[i,-1])
 
-    return s*-J
+    return s*-J/L**2
 
 @jit()
 def en_mat(ltc,J=1):
@@ -83,7 +83,7 @@ def magn_tot2(ltc:np.ndarray) -> float:
 def magn_tot3(ltc:np.ndarray) -> tuple[float,float]:
     return np.cos(ltc).sum(),np.sin(ltc).sum()
 
-@jit()
+@jit(cache=True)
 def magn_tot4(ltc:np.ndarray) -> tuple[float,float]:
     L = ltc.shape[0]
     mx,my = 0,0
@@ -91,6 +91,8 @@ def magn_tot4(ltc:np.ndarray) -> tuple[float,float]:
         for j in range(L):
             mx += np.cos(ltc[i,j])
             my += np.sin(ltc[i,j])
+    mx = mx/L**2
+    my = my/L**2
     return mx,my
 
 
@@ -134,19 +136,6 @@ def _main(L:int,T:float=1,steps:int=1_000_000,J:float=1,rng=rng):
         mxy_vec[i] = magn_tot4(spin_lattice)
     return en_vec1,mxy_vec
 
-# _main(10)
-# @jit()
-def simul(L:int,T:float,steps:int,J:float=1,
-          term_steps:int=0,
-          rng:np.random.Generator=rng): #-> list[np.ndarray]:
-    spin_lattice = rng.uniform(0,2*np.pi,(L,L))
-    en_vec = np.empty(steps+term_steps,dtype=float)
-    magn_vec = np.empty(steps+term_steps,dtype=float)
-    if term_steps:
-        for i in range(term_steps):
-            en_vec[i] = energia_tot_2(spin_lattice,J)
-            magn_vec[i] = magn_tot1(spin_lattice)
-            # cv_vec[i] = calore_spec_V(spin_lattice)
 
 @jit()
 def test(ltc,n,rng):
@@ -208,12 +197,29 @@ def sim(L:int,n_T,rng):
         print('M =',m_tot[300_000:].mean()/L**2)
         print('chi =',susc_magn(m_tot,T,300_000))
 
+"""
+DA FARE
+
+Invece di calcolare energia e magnetizzazione totale
+ad ogni step mi calcolo solo e salvo solo le delta
+e poi alla fine della simulazione posso fare 
+un cumsum a partire dai valori iniziali totali.
+
+Cercare di capire come velocizzare la termalizzazione.
+
+"""
 
 if __name__=="__main__":
-    L=20
+    L=40
     # T=0.1
-    sim(L,20,rng)    
+    for L in range(10,51,10):
+        e,mxy = _main(L,0.1,1_000_000,rng=rng)
+        m = np.sqrt(mxy[:,0]**2+mxy[:,1]**2)
 
+        plt.plot(m)
+        plt.plot(e)
+    plt.grid()
+    plt.show()
     # print(magn_tot1(asd))
     # print(magn_tot2(asd))
     # # MC_step(asd,1,1,rng)
