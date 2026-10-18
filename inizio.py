@@ -17,8 +17,8 @@ def init(L:int,
 
     return rng.uniform(low=0, high=2*np.pi, size=(L,L))
 
-@jit()
-def energia_tot_2(ltc:np.ndarray,J:float=1) -> float:
+@jit(cache=True)
+def en_tot_2(ltc:np.ndarray,J:float=1) -> float:
     """
     Funzione per il calcolo dell'energia di un data configurazione.
 
@@ -36,7 +36,7 @@ def energia_tot_2(ltc:np.ndarray,J:float=1) -> float:
     return (np.cos(ltc[:-1,:]-ltc[1:,:]).sum()+
             np.cos(ltc[:,:-1]-ltc[:,1:]).sum()+
             np.cos(ltc[0,:]-ltc[-1,:]).sum()+
-            np.cos(ltc[:,0]-ltc[:,-1]).sum())*-2*J
+            np.cos(ltc[:,0]-ltc[:,-1]).sum())*-J
 
 @jit(cache=True)
 def en_tot_4(ltc,J=1.):
@@ -79,7 +79,7 @@ def magn_tot2(ltc:np.ndarray) -> float:
             my += np.sin(ltc[i,j])
     return np.sqrt(mx**2+my**2)
 
-@jit()
+@jit(cache=True)
 def magn_tot3(ltc:np.ndarray) -> tuple[float,float]:
     return np.cos(ltc).sum(),np.sin(ltc).sum()
 
@@ -115,9 +115,9 @@ def MC_step(ltc:np.ndarray, T:float, J:float=1,
     delta_theta = rng.normal(0,np.pi/10)   #rng.uniform(-np.pi/4,np.pi/4)
     t_o = ltc[x,y]
     t_n = t_o + delta_theta
-    E_o = -2*J*(np.cos(t_o-ltc[(x+1)%L,y])+np.cos(t_o-ltc[(x-1)%L,y])+
+    E_o = -J*(np.cos(t_o-ltc[(x+1)%L,y])+np.cos(t_o-ltc[(x-1)%L,y])+
               np.cos(t_o-ltc[x,(y+1)%L])+np.cos(t_o-ltc[x,(y-1)%L]))
-    E_n = -2*J*(np.cos(t_n-ltc[(x+1)%L,y])+np.cos(t_n-ltc[(x-1)%L,y])+
+    E_n = -J*(np.cos(t_n-ltc[(x+1)%L,y])+np.cos(t_n-ltc[(x-1)%L,y])+
               np.cos(t_n-ltc[x,(y+1)%L])+np.cos(t_n-ltc[x,(y-1)%L]))
     if (E_n - E_o) <= 0:
         ltc[x,y] = t_n
@@ -200,26 +200,62 @@ def sim(L:int,n_T,rng):
 """
 DA FARE
 
-Invece di calcolare energia e magnetizzazione totale
-ad ogni step mi calcolo solo e salvo solo le delta
-e poi alla fine della simulazione posso fare 
-un cumsum a partire dai valori iniziali totali.
-
 Cercare di capire come velocizzare la termalizzazione.
 
 """
 
-if __name__=="__main__":
-    L=40
-    # T=0.1
-    for L in range(10,51,10):
-        e,mxy = _main(L,0.1,1_000_000,rng=rng)
-        m = np.sqrt(mxy[:,0]**2+mxy[:,1]**2)
+@jit(cache=True)
+def nuovo(L,T,steps,rng:np.random.Generator,J=1):
+    ltc = rng.uniform(0, 2*np.pi, (L,L))
+    e = np.zeros(steps+1,np.float64)
+    mxy = np.zeros((steps+1,2),np.float64)
+    e[0] = en_tot_2(ltc,J)
+    mxy[0] = magn_tot3(ltc)
+    for i in range(steps):
+        x,y = rng.integers(0,L,size=2)
+        delta_theta = rng.normal(0,np.pi/18)
+        t_o = ltc[x,y]
+        t_n = t_o + delta_theta
+        up = ltc[(x-1)%L,y]
+        down = ltc[(x+1)%L,y]
+        left = ltc[x,(y-1)%L]
+        right = ltc[x,(y+1)%L]
+        E_o = -J*(np.cos(t_o-up)+np.cos(t_o-down)+
+                 np.cos(t_o-left)+np.cos(t_o-right))
+        E_n = -J*(np.cos(t_n-up)+np.cos(t_n-down)+
+                 np.cos(t_n-left)+np.cos(t_n-right))
+        delta_E = E_n - E_o
+        delta_mx = np.cos(t_n)-np.cos(t_o)
+        delta_my = np.sin(t_n)-np.sin(t_o)
+        if delta_E <= 0:
+            ltc[x,y] = t_n
+            e[i+1] = delta_E
+            mxy[i+1] = (delta_mx,delta_my)
+        elif (rng.uniform()<np.e**(-delta_E/T)):
+            ltc[x,y] = t_n
+            e[i+1] = delta_E
+            mxy[i+1] = (delta_mx,delta_my)
+    return e.cumsum(),mxy.cumsum(0)
 
-        plt.plot(m)
-        plt.plot(e)
-    plt.grid()
-    plt.show()
+
+if __name__=="__main__":
+    L=50
+    T=0.5
+    # e,mxy = _main(L,T,1_000_000,rng=rng)
+    # m = np.sqrt(mxy[:,0]**2+mxy[:,1]**2)
+    nuovo(L,T,10,rng)
+    _main(L,T,10,rng=rng)
+    print(timeit.timeit(lambda:nuovo(L,T,10_000_000,rng),number=1))
+    print(timeit.timeit(lambda:_main(L,T,100_000,rng=rng),number=1))
+    # e = e/L**2
+    # mxy = mxy/L**2
+    # m = np.sqrt(mxy[:,0]**2+mxy[:,1]**2)
+    # print(e[200_000:].mean())
+    # print(m[200_000:].mean())
+    # plt.plot(m)
+    # plt.plot(e)
+    # plt.grid()
+    # plt.show()
     # print(magn_tot1(asd))
     # print(magn_tot2(asd))
     # # MC_step(asd,1,1,rng)
