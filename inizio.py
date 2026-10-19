@@ -17,7 +17,7 @@ def init(L:int,
 
     return rng.uniform(low=0, high=2*np.pi, size=(L,L))
 
-@jit(cache=True)
+@jit()
 def en_tot_2(ltc:np.ndarray,J:float=1) -> float:
     """
     Funzione per il calcolo dell'energia di un data configurazione.
@@ -38,7 +38,7 @@ def en_tot_2(ltc:np.ndarray,J:float=1) -> float:
             np.cos(ltc[0,:]-ltc[-1,:]).sum()+
             np.cos(ltc[:,0]-ltc[:,-1]).sum())*-J
 
-@jit(cache=True)
+@jit()
 def en_tot_4(ltc,J=1.):
     s = 0
     L = ltc.shape[0]
@@ -79,11 +79,11 @@ def magn_tot2(ltc:np.ndarray) -> float:
             my += np.sin(ltc[i,j])
     return np.sqrt(mx**2+my**2)
 
-@jit(cache=True)
+@jit()
 def magn_tot3(ltc:np.ndarray) -> tuple[float,float]:
     return np.cos(ltc).sum(),np.sin(ltc).sum()
 
-@jit(cache=True)
+@jit()
 def magn_tot4(ltc:np.ndarray) -> tuple[float,float]:
     L = ltc.shape[0]
     mx,my = 0,0
@@ -98,7 +98,7 @@ def magn_tot4(ltc:np.ndarray) -> tuple[float,float]:
 
 @jit()
 def cal_spec(en_vec:np.ndarray,T:float,n_t:int=0):
-    return ((en_vec[n_t:]**2).mean()-(en_vec[n_t:].mean())**2)/T**2
+    return ((en_vec[n_t:]**2).mean()-(en_vec[n_t:].mean())**2)/(L*T)**2
 
 @jit()
 def susc_magn(magn_vec:np.ndarray,T:float,n_t:int=0):
@@ -107,7 +107,7 @@ def susc_magn(magn_vec:np.ndarray,T:float,n_t:int=0):
 
 
 
-@jit(cache=True)
+@jit()
 def MC_step(ltc:np.ndarray, T:float, J:float=1,
             rng:np.random.Generator=rng):
     L = ltc.shape[0]
@@ -125,7 +125,7 @@ def MC_step(ltc:np.ndarray, T:float, J:float=1,
         ltc[x,y] = t_n
 
 
-@jit(cache=True)
+@jit()
 def _main(L:int,T:float=1,steps:int=1_000_000,J:float=1,rng=rng):
     spin_lattice = rng.uniform(0, 2*np.pi, (L,L))
     en_vec1 = np.zeros(steps,np.float64)
@@ -197,15 +197,9 @@ def sim(L:int,n_T,rng):
         print('M =',m_tot[300_000:].mean()/L**2)
         print('chi =',susc_magn(m_tot,T,300_000))
 
-"""
-DA FARE
 
-Cercare di capire come velocizzare la termalizzazione.
-
-"""
-
-@jit(cache=True)
-def nuovo(L,T,steps,rng:np.random.Generator,J=1):
+@jit()
+def nuovo(L:int,T:float,steps:int,rng:np.random.Generator,J:float=1.):
     ltc = rng.uniform(0, 2*np.pi, (L,L))
     e = np.zeros(steps+1,np.float64)
     mxy = np.zeros((steps+1,2),np.float64)
@@ -237,39 +231,38 @@ def nuovo(L,T,steps,rng:np.random.Generator,J=1):
             mxy[i+1] = (delta_mx,delta_my)
     return e.cumsum(),mxy.cumsum(0)
 
+@jit(parallel=True)
+def sweep_Temp(L:int,T_vec:np.ndarray,steps:int,
+               rng:np.random.Generator,n_taglio:int=0,J:float=1.):
+    n_T = T_vec.size
+    e = np.zeros((n_T,steps+1),np.float64)
+    mxy = np.zeros((n_T,steps+1,2),np.float64)
+    e_out = np.zeros(n_T,np.float64)
+    m_out = np.zeros(n_T,np.float64)
+    cv_out = np.zeros(n_T,np.float64)
+    susc_out = np.zeros(n_T,np.float64)
+    for i in prange(n_T):
+        e[i],mxy[i] = nuovo(L,T_vec[i],steps,rng,J)
+        e_out[i] = e[i,n_taglio:].mean()/L**2
+        m = np.sqrt(mxy[i,:,0]**2+mxy[i,:,1]**2)
+        m_out[i] = m[n_taglio:].mean()/L**2
+        cv_out[i] = cal_spec(e[i],T_vec[i],n_taglio)
+        susc_out[i] = susc_magn(m,T_vec[i],n_taglio)/L**2
+    return e,mxy,e_out,m_out,cv_out,susc_out
+
+
 
 if __name__=="__main__":
-    L=50
-    T=0.5
-    # e,mxy = _main(L,T,1_000_000,rng=rng)
-    # m = np.sqrt(mxy[:,0]**2+mxy[:,1]**2)
-    nuovo(L,T,10,rng)
-    _main(L,T,10,rng=rng)
-    print(timeit.timeit(lambda:nuovo(L,T,10_000_000,rng),number=1))
-    print(timeit.timeit(lambda:_main(L,T,100_000,rng=rng),number=1))
-    # e = e/L**2
-    # mxy = mxy/L**2
-    # m = np.sqrt(mxy[:,0]**2+mxy[:,1]**2)
-    # print(e[200_000:].mean())
-    # print(m[200_000:].mean())
+    L=20
+    T_vec = np.linspace(0.01,3,20)
+    e,mxy,e_m,m_m,cv,chi = sweep_Temp(L,T_vec,2_000_000,rng,500_000)
+    print(e_m,m_m,cv,chi)
+    plt.plot(T_vec,np.stack((e_m,m_m,cv,chi),axis=1))
+
     # plt.plot(m)
     # plt.plot(e)
-    # plt.grid()
-    # plt.show()
-    # print(magn_tot1(asd))
-    # print(magn_tot2(asd))
-    # # MC_step(asd,1,1,rng)
-    # testm4(asd,2,rng)
-    # testm5(asd,2,rng)
-    # print('m4',timeit.timeit(lambda: testm4(asd.copy(),10000,rng),number=1))
-    # print('m5',timeit.timeit(lambda: testm5(asd.copy(),10000,rng),number=1))
+    plt.grid()
+    plt.show()
 
-    # en_vec1,en_vec2,en_vec3  = _main(L,0.2,500_000,1,rng)
-    # print(en_vec1.mean()/L**2)
-    # print(en_vec2.mean()/L**2)
-    # print(en_vec3.mean()/L**2)
-    # plt.plot(en_vec3/L**2,'r')
-    # plt.plot(en_vec2/L**2,'g')
-    # plt.plot(en_vec1/L**2,'y')
-    # plt.grid()
-    # plt.show()
+
+    # print('m5',timeit.timeit(lambda: testm5(asd.copy(),10000,rng),number=1))
