@@ -4,18 +4,7 @@ import timeit
 from numba import jit,prange
 
 
-rng = np.random.default_rng()
-
-
-
-def init(L:int, 
-        rng:np.random.Generator=rng) -> np.ndarray:
-    """
-    Inizializzazione del lattice.
-
-    """
-
-    return rng.uniform(low=0, high=2*np.pi, size=(L,L))
+rng = np.random.default_rng(35413456768)
 
 @jit()
 def en_tot_2(ltc:np.ndarray,J:float=1) -> float:
@@ -231,7 +220,7 @@ def nuovo(L:int,T:float,steps:int,rng:np.random.Generator,J:float=1.):
             mxy[i+1] = (delta_mx,delta_my)
     return e.cumsum(),mxy.cumsum(0)
 
-@jit(parallel=True)
+@jit(parallel=False)
 def sweep_Temp(L:int,T_vec:np.ndarray,steps:int,
                rng:np.random.Generator,n_taglio:int=0,J:float=1.):
     n_T = T_vec.size
@@ -253,11 +242,17 @@ def sweep_Temp(L:int,T_vec:np.ndarray,steps:int,
 
 
 if __name__=="__main__":
-    L=20
-    T_vec = np.linspace(0.01,3,20)
+    L=50
+    T=2
+    # e,mxy = nuovo(L,T,1_000_000,rng)
+    # m = np.sqrt(mxy[:,0]**2+mxy[:,1]**2)
+    # plt.plot(e)
+    # plt.plot(m)
+    T_vec = np.linspace(0.01,1.5,20)
     e,mxy,e_m,m_m,cv,chi = sweep_Temp(L,T_vec,2_000_000,rng,500_000)
     print(e_m,m_m,cv,chi)
-    plt.plot(T_vec,np.stack((e_m,m_m,cv,chi),axis=1))
+    # plt.plot(T_vec,np.stack((e_m,m_m,cv,chi),axis=1))
+    plt.plot(T_vec,m_m)
 
     # plt.plot(m)
     # plt.plot(e)
