@@ -3,6 +3,9 @@ import matplotlib.pyplot as plt
 from numba import jit,prange
 
 array_2d_float64 = np.ndarray[tuple[int,int],np.dtype[np.float64]]
+array_1d_float64 = np.ndarray[tuple[int],np.dtype[np.float64]]
+
+RNG = np.random.default_rng()
 
 @jit()
 def en_tot(ltc:array_2d_float64,
@@ -62,7 +65,7 @@ def magn_tot_xy(ltc:array_2d_float64,L:int) -> tuple[float,float]:
 @jit()
 def metro_loop_savestate(ltc:array_2d_float64, T:float, steps:int,
                L:int, rng:np.random.Generator, J:float=1.
-               ) -> tuple[np.ndarray,np.ndarray]:
+               ) -> tuple[array_1d_float64,array_2d_float64]:
     """
     Funzione che esegue il loop di update dell'algoritmo di Metropolis.
     L'update sull'array viene eseguito come effetto collaterale della funzione.
@@ -96,23 +99,35 @@ def metro_loop_savestate(ltc:array_2d_float64, T:float, steps:int,
         variazione della configurazione degli spin.
     :rtype: ndarry,ndarry
     """
-    e_vec = np.zeros(steps,np.float64)
-    mxy_vec = np.zeros((steps,2),np.float64)
-    for i in range(steps):
+    # Creazione dei vettori per registrare l'energia
+    # e la magnetizzazione
+    e_vec = np.zeros(steps+1,np.float64)
+    mxy_vec = np.zeros((steps+1,2),np.float64)
+    e_vec[0] = en_tot(ltc,L,J)
+    mxy_vec[0] = magn_tot_xy(ltc,L)
+    #loop di update della configurazione
+    for i in range(1,steps+1):
+        # estrazione di numeri casuali per quale posizione
+        # aggiornare e di quanto cambiarla
         x,y = rng.integers(0,L,size=2)
         t_o = ltc[x,y]
         t_n = t_o + rng.normal(0,np.pi/18)
+        # calcolo dei vicini
         up = ltc[(x-1)%L,y]
         down = ltc[(x+1)%L,y]
         left = ltc[x,(y-1)%L]
         right = ltc[x,(y+1)%L]
+        # calcolo della differenza di energia tra il vecchio e
+        # il possibile nuovo
         E_o = -J*(np.cos(t_o-up)+np.cos(t_o-down)+
                  np.cos(t_o-left)+np.cos(t_o-right))
         E_n = -J*(np.cos(t_n-up)+np.cos(t_n-down)+
                  np.cos(t_n-left)+np.cos(t_n-right))
         delta_E = E_n - E_o
+        # calcolo della differenza nella magnetizzazione
         delta_mx = np.cos(t_n)-np.cos(t_o)
         delta_my = np.sin(t_n)-np.sin(t_o)
+        # condizioni di accettamento della variazione dello spin
         if delta_E <= 0:
             ltc[x,y] = t_n
             e_vec[i] = delta_E
@@ -121,7 +136,7 @@ def metro_loop_savestate(ltc:array_2d_float64, T:float, steps:int,
             ltc[x,y] = t_n
             e_vec[i] = delta_E
             mxy_vec[i] = (delta_mx,delta_my)
-    return e_vec,mxy_vec
+    return e_vec.cumsum(),mxy_vec.cumsum(0)
 
 @jit()
 def metro_loop_nosave(ltc:array_2d_float64, T:float, steps:int,
@@ -175,3 +190,36 @@ def metro_loop_nosave(ltc:array_2d_float64, T:float, steps:int,
     return
 
 
+@jit()
+def simul_sing(L:int, T:float, samples:int, rng:np.random.Generator,
+               len_sam:int = 10_000, distance:int = 10_000,
+               termal:int = 500_000, J:float = 1.
+               ) -> tuple[array_1d_float64,array_2d_float64]:
+
+
+    # creazione array di spin
+    ltc = rng.uniform(0,2*np.pi,(L,L))
+    # creazione array di energia e magnetizzazione di output
+    en_o = np.zeros(samples,np.float64)
+    mag_xy_o = np.zeros((samples,2),np.float64)
+    metro_loop_nosave(ltc,T,termal,L,rng,J)
+    for i in range(samples):
+        metro_loop_nosave(ltc,T,distance,L,rng,J)
+        e,mxy = metro_loop_savestate(ltc,T,len_sam,L,rng,J)
+        en_o[i] = e.mean()
+        mag_xy_o[i,0] = mxy[:,0].mean()
+        mag_xy_o[i,1] = mxy[:,1].mean()
+    return en_o,mag_xy_o
+
+
+if __name__ == '__main__':
+    L = 20
+    T = 0.1
+    e,mxy = simul_sing(L,T,1000,RNG)
+    m = np.sqrt(mxy[:,0]**2+mxy[:,1]**2)
+    print(f'en media = {e.mean()/L**2:.4f}')
+    print(f'magn media = {m.mean()/L**2:.4f}')
+    cv = ((e**2).mean() - (e.mean())**2)/(L*T)**2
+    chi = ((m**2).mean() - (m.mean())**2)/(L**2*T)
+    print(f'C_v = {cv:.4f}')
+    print(f'Chi = {chi:.4f}')

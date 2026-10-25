@@ -1,7 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import timeit
+from timeit import timeit
 from numba import jit,prange
+import simul
 
 
 rng = np.random.default_rng(35413456768)
@@ -242,22 +243,26 @@ def sweep_Temp(L:int,T_vec:np.ndarray,steps:int,
 
 
 if __name__=="__main__":
-    L=50
-    T=2
+    L=20
+    T=0.1
     # e,mxy = nuovo(L,T,1_000_000,rng)
     # m = np.sqrt(mxy[:,0]**2+mxy[:,1]**2)
     # plt.plot(e)
     # plt.plot(m)
-    T_vec = np.linspace(0.01,1.5,20)
-    e,mxy,e_m,m_m,cv,chi = sweep_Temp(L,T_vec,2_000_000,rng,500_000)
-    print(e_m,m_m,cv,chi)
+    # T_vec = np.linspace(0.01,1.5,20)
+    # e,mxy,e_m,m_m,cv,chi = sweep_Temp(L,T_vec,2_000_000,rng,500_000)
+    # print(e_m,m_m,cv,chi)
     # plt.plot(T_vec,np.stack((e_m,m_m,cv,chi),axis=1))
-    plt.plot(T_vec,m_m)
+    # # plt.plot(T_vec,m_m)
 
-    # plt.plot(m)
-    # plt.plot(e)
-    plt.grid()
-    plt.show()
+    # # plt.plot(m)
+    # # plt.plot(e)
+    # plt.grid()
+    # plt.show()
+
+    simul.simul_sing(L,T,1,rng,10,10,10)
+
+    print(timeit(lambda: simul.simul_sing(L,T,100,rng),number=10))
 
 
     # print('m5',timeit.timeit(lambda: testm5(asd.copy(),10000,rng),number=1))
