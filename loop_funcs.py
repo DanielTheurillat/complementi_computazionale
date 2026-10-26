@@ -12,11 +12,13 @@ def en_tot(ltc:array_2d_float64,
             L:int,J:float=1,
            )-> float:
     """
-    Calcolo dell'energia totale.
+    Calcolo dell'energia totale tramite semplice loop.
+    Si considerano Periodic Boundary Conditions.
 
-    :params ltc: Matrice della configurazione di cui si vuole calcolare
-        l'energia totale. Deve essere quadrata. Ogni entrata della matrice
-        corrisponde all'angolo dello spin in quella posizione del lattice.
+    :params ltc: Matrice della configurazione di cui si vuole 
+        calcolare l'energia totale. Deve essere quadrata. Ogni 
+        entrata della matrice corrisponde all'angolo dello spin 
+        in quella posizione del lattice.
     :type ltc: ndarray
 
     :params L: Larghezza del lattice.
@@ -43,9 +45,10 @@ def magn_tot_xy(ltc:array_2d_float64,L:int) -> tuple[float,float]:
     """
     Calcolo della magnetizzazione lungo i due assi.
 
-    :param ltc: Matrice della configurazione di cui si vuole calcolare
-        la magnetizzazione. Deve essere quadrata. Ogni entrata della matrice
-        corrisponde all'angolo dello spin in quella posizione del lattice.
+    :param ltc: Matrice della configurazione di cui si vuole 
+        calcolare la magnetizzazione. Deve essere quadrata. Ogni 
+        entrata della matrice corrisponde all'angolo dello spin in 
+        quella posizione del lattice.
     :type ltc: ndarray
 
     :param L: Larghezza del lattice.
@@ -67,15 +70,15 @@ def metro_loop_savestate(ltc:array_2d_float64, T:float, steps:int,
                L:int, rng:np.random.Generator, J:float=1.
                ) -> tuple[array_1d_float64,array_2d_float64]:
     """
-    Funzione che esegue il loop di update dell'algoritmo di Metropolis.
-    L'update sull'array viene eseguito come effetto collaterale della funzione.
-    Fornisce in output vettori contenenti la variazione dell'energia e
-    magnetizzazione ad ogni step.
+    Funzione che esegue il loop di update dell'algoritmo 
+    di Metropolis. L'update sull'array viene eseguito come effetto
+    collaterale della funzione. Fornisce in output vettori contenenti
+     la variazione dell'energia e magnetizzazione ad ogni step.
 
-    :params ltc: Matrice della configurazione a cui si vuole applicare 
-        l'update di Metropolis. Deve essere quadrata. Ogni entrata 
-        della matrice corrisponde all'angolo dello spin in quella 
-        posizione del lattice.
+    :params ltc: Matrice della configurazione a cui si vuole 
+        applicare l'update di Metropolis. Deve essere quadrata.
+        Ogni entrata della matrice corrisponde all'angolo dello
+        spin in quella posizione del lattice.
     :type ltc: ndarray
 
     :params T: Temperatura della simulazione del sistema
@@ -147,7 +150,7 @@ def metro_loop_nosave(ltc:array_2d_float64, T:float, steps:int,
     Non salva nessuna informazione sugli stati, le modifiche all'array
     della configurazione avviene come effetto collaterale.
 
-    :params ltc: Matrice della configurazione a cui si vuole applicare 
+    :params ltc: Matrice della configurazione a cui si vuole applicare
         l'update di Metropolis. Deve essere quadrata. Ogni entrata 
         della matrice corrisponde all'angolo dello spin in quella 
         posizione del lattice.
@@ -195,21 +198,67 @@ def simul_sing(L:int, T:float, samples:int, rng:np.random.Generator,
                len_sam:int = 10_000, distance:int = 10_000,
                termal:int = 500_000, J:float = 1.
                ) -> tuple[array_1d_float64,array_2d_float64]:
+    """
+    Funzione che esegue una simulazione intera di una configurazione
+    di una data grandezza e ad una data temperatura.
+    L'energia e la magnetizzazione vengono prese mediando `len_sam`
+    configurazioni successive. Tra ogni acquisizione passano
+    `distance` step per scorrelare le configurazioni. Prima
+    di iniziare le misurazioni passano `termal` step di termalizzazione.
 
+    :params L: Larghezza del reticolo.
+    :type L: int
 
+    :params T: Temperatura della simulazione.
+    :type T: float
+
+    :params samples: Numero di campionamenti da eseguire.
+    :type samples: int
+
+    :params rng: Generatore di numeri casuale da usare.
+    :type rng: Generator
+
+    :params len_sam: Numero di passi da cui mediare i valori
+        di energia e magnetizzazione per una misura singola.
+        Default 10_000.
+    :type len_sam: int
+    
+    :params distance: Numero di passi tra l'inizio di una misura 
+        ed un'altra, in maniera tale da ottenere configurazioni
+        scorrelate. Default 10_000.
+    :type distance: int
+
+    :params termal: Numero di step di termalizzazione.
+        default 500_000.
+    :type termal: int
+
+    :params J: Costante di coupling del modello. Default 1.0.
+    :type J: float
+
+    :return en_out, magn_xy_out: Valori dell'energia e della 
+        magnetizzazione lungo i due assi. L'array `en_out`
+        ha dimensione `(samples)`. L'array `magn_xy_out` ha
+        dimensioni `(samples,2)`.
+    :return type: ndarray,ndarray
+    """
     # creazione array di spin
     ltc = rng.uniform(0,2*np.pi,(L,L))
     # creazione array di energia e magnetizzazione di output
-    en_o = np.zeros(samples,np.float64)
-    mag_xy_o = np.zeros((samples,2),np.float64)
+    en_out = np.zeros(samples,np.float64)
+    magn_xy_out = np.zeros((samples,2),np.float64)
+    # la configurazione viene termalizzata con termal step
     metro_loop_nosave(ltc,T,termal,L,rng,J)
+    # loop di acquisizione delle quantità da misurare
     for i in range(samples):
+        # distance step per ottenere un nuovo insieme di configurazioni
+        # scorrelate
         metro_loop_nosave(ltc,T,distance,L,rng,J)
+        # len_sam step da cui si mediano l'energia e magnetizzazione
         e,mxy = metro_loop_savestate(ltc,T,len_sam,L,rng,J)
-        en_o[i] = e.mean()
-        mag_xy_o[i,0] = mxy[:,0].mean()
-        mag_xy_o[i,1] = mxy[:,1].mean()
-    return en_o,mag_xy_o
+        en_out[i] = e.mean()
+        magn_xy_out[i,0] = mxy[:,0].mean()
+        magn_xy_out[i,1] = mxy[:,1].mean()
+    return en_out,magn_xy_out
 
 
 if __name__ == '__main__':
