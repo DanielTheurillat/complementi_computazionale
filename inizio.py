@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from timeit import timeit
 from numba import jit,prange
-import simul
+import loop_funcs as lf
 
 
 rng = np.random.default_rng(35413456768)
@@ -87,7 +87,7 @@ def magn_tot4(ltc:np.ndarray) -> tuple[float,float]:
 
 
 @jit()
-def cal_spec(en_vec:np.ndarray,T:float,n_t:int=0):
+def cal_spec(en_vec:np.ndarray,T:float,L:int,n_t:int=0):
     return ((en_vec[n_t:]**2).mean()-(en_vec[n_t:].mean())**2)/(L*T)**2
 
 @jit()
@@ -243,8 +243,8 @@ def sweep_Temp(L:int,T_vec:np.ndarray,steps:int,
 
 
 if __name__=="__main__":
-    L=20
-    T=0.1
+    # L=20
+    # T=0.1
     # e,mxy = nuovo(L,T,1_000_000,rng)
     # m = np.sqrt(mxy[:,0]**2+mxy[:,1]**2)
     # plt.plot(e)
@@ -260,9 +260,24 @@ if __name__=="__main__":
     # plt.grid()
     # plt.show()
 
-    simul.simul_sing(L,T,1,rng,10,10,10)
+    # loop_funcs.simul_sing(L,T,1,rng,10,10,10)
 
-    print(timeit(lambda: simul.simul_sing(L,T,100,rng),number=10))
+    # print(timeit(lambda: loop_funcs.simul_sing(L,T,100,rng),number=10))
 
 
     # print('m5',timeit.timeit(lambda: testm5(asd.copy(),10000,rng),number=1))
+    T=0.2
+    for i in range(3,9):
+        # ltc = rng.uniform(0,2*np.pi,(2**i,2**i))
+        ltc = np.ones((2**i,2**i),np.float64)
+        e,_ = lf.metro_loop_savestate(ltc,T,2_000_000,2**i,rng)
+        plt.plot(e/4**i,label=f'L = {2**i}')
+    plt.grid()
+    plt.xlabel('Steps')
+    plt.ylabel('Energia per sito')
+    plt.title('Tempo di termalizzazione con T=0.2 per\n' \
+    'diverse grandezze del reticolo')
+    plt.legend(loc='upper right')
+    plt.tight_layout()
+    plt.show()
+    # if (int(input('save?\n'))==1): plt.savefig('assets/term_comp_T0,2.png',dpi=400)
