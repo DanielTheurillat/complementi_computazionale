@@ -240,10 +240,40 @@ def sweep_Temp(L:int,T_vec:np.ndarray,steps:int,
         susc_out[i] = susc_magn(m,T_vec[i],n_taglio)/L**2
     return e,mxy,e_out,m_out,cv_out,susc_out
 
+@jit()
+def termal_prova(ltc,T,steps,L,rng:np.random.Generator,J=1.):
+    x_v = np.arange(L)
+    y_v = np.arange(L)
+    e = np.zeros(steps,dtype=np.float64)
+    mxy_vec = np.zeros((steps,2),dtype=np.float64)
+    for k in range(steps):
+        rng.shuffle(x_v)
+        rng.shuffle(y_v)
+        for i,x in enumerate(x_v):
+            for j,y in enumerate(y_v):
+                t_o = ltc[x,y]
+                t_n = t_o + rng.normal(0,np.pi/18)
+                up = ltc[(x-1)%L,y]
+                down = ltc[(x+1)%L,y]
+                left = ltc[x,(y-1)%L]
+                right = ltc[x,(y+1)%L]
+                E_o = -J*(np.cos(t_o-up)+np.cos(t_o-down)+
+                         np.cos(t_o-left)+np.cos(t_o-right))
+                E_n = -J*(np.cos(t_n-up)+np.cos(t_n-down)+
+                         np.cos(t_n-left)+np.cos(t_n-right))
+                delta_E = E_n - E_o
+                if delta_E <= 0:
+                    ltc[x,y] = t_n
+                elif (rng.uniform()<np.e**(-delta_E/T)):
+                    ltc[x,y] = t_n
+        e[k] = lf.en_tot(ltc,L,J)
+        mxy_vec[k] = lf.magn_tot_xy(ltc,L)
+    return e,mxy_vec
+
 
 
 if __name__=="__main__":
-    # L=20
+    L=20
     # T=0.1
     # e,mxy = nuovo(L,T,1_000_000,rng)
     # m = np.sqrt(mxy[:,0]**2+mxy[:,1]**2)
@@ -267,17 +297,26 @@ if __name__=="__main__":
 
     # print('m5',timeit.timeit(lambda: testm5(asd.copy(),10000,rng),number=1))
     T=0.2
-    for i in range(3,9):
-        # ltc = rng.uniform(0,2*np.pi,(2**i,2**i))
-        ltc = np.ones((2**i,2**i),np.float64)
-        e,_ = lf.metro_loop_savestate(ltc,T,2_000_000,2**i,rng)
-        plt.plot(e/4**i,label=f'L = {2**i}')
-    plt.grid()
-    plt.xlabel('Steps')
-    plt.ylabel('Energia per sito')
-    plt.title('Tempo di termalizzazione con T=0.2 per\n' \
-    'diverse grandezze del reticolo')
-    plt.legend(loc='upper right')
-    plt.tight_layout()
-    plt.show()
+    ltc = rng.uniform(0,2*np.pi,(L,L))
+    termal_prova(ltc,T,1,L,rng)
+    lf.metro_loop_savestate(ltc,T,1,L,rng)
+    print(timeit(lambda: lf.metro_loop_savestate(rng.uniform(0,2*np.pi,(L,L)),
+                T,400_000,L,rng),number=100))
+    # fig,(ax1,ax2) = plt.subplots(1,2)
+    # for i in range(3,9):
+    #     # ltc = rng.uniform(0,2*np.pi,(2**i,2**i))
+    #     ltc = np.ones((2**i,2**i),np.float64)
+    #     e,m = termal_prova(ltc,T,4000,2**i,rng)
+    #     # e,m = lf.metro_loop_savestate(ltc,T,2_000_000,2**i,rng)
+    #     ax1.plot(e/4**i,label=f'L = {2**i}')
+    #     ax2.plot(np.sqrt(m[:,0]**2+m[:,1]**2)/4**i,
+    #         label=f'L = {2**i}')
+    # plt.grid()
+    # plt.xlabel('Steps')
+    # plt.ylabel('Energia per sito')
+    # plt.title('Termalizzazione con T=0.2 da hot start\n' \
+    # 'per diverse grandezze del reticolo')
+    # plt.legend(loc='upper right')
+    # plt.tight_layout()
+    # plt.show()
     # if (int(input('save?\n'))==1): plt.savefig('assets/term_comp_T0,2.png',dpi=400)
