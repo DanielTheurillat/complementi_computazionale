@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from numba import jit,prange
 
 array_2d_float64 = np.ndarray[tuple[int,int],np.dtype[np.float64]]
