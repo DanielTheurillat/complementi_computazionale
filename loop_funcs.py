@@ -1,5 +1,6 @@
 import numpy as np
 from numba import jit,prange
+from typing import Literal
 
 array_2d_float64 = np.ndarray[tuple[int,int],np.dtype[np.float64]]
 array_1d_float64 = np.ndarray[tuple[int],np.dtype[np.float64]]
@@ -113,7 +114,7 @@ def metro_loop_savestate(ltc:array_2d_float64, T:float, steps:int,
         # aggiornare e di quanto cambiarla
         x,y = rng.integers(0,L,size=2)
         t_o = ltc[x,y]
-        t_n = t_o + rng.normal(0,np.pi/18)
+        t_n = t_o + rng.uniform(-np.pi/1.4,np.pi/1.4)
         # calcolo dei vicini
         up = ltc[(x-1)%L,y]
         down = ltc[(x+1)%L,y]
@@ -175,7 +176,8 @@ def metro_loop_nosave(ltc:array_2d_float64, T:float, steps:int,
     for _ in range(steps):
         x,y = rng.integers(0,L,size=2)
         t_o = ltc[x,y]
-        t_n = t_o + rng.normal(0,np.pi/18)
+        t_n = t_o + rng.uniform(-np.pi/1.4,np.pi/1.4)
+        # t_n = t_o + rng.normal(0,np.pi/6)
         up = ltc[(x-1)%L,y]
         down = ltc[(x+1)%L,y]
         left = ltc[x,(y-1)%L]
@@ -195,6 +197,7 @@ def metro_loop_nosave(ltc:array_2d_float64, T:float, steps:int,
 @jit()
 def simul_sing(L:int, T:float, samples:int, rng:np.random.Generator,
                len_sam:int = 10_000, distance:int = 10_000,
+               start:Literal['hot','cold']='hot',
                termal:int = 500_000, J:float = 1.
                ) -> tuple[array_1d_float64,array_2d_float64]:
     """
@@ -241,33 +244,90 @@ def simul_sing(L:int, T:float, samples:int, rng:np.random.Generator,
     :return type: ndarray,ndarray
     """
     # creazione array di spin
-    ltc = rng.uniform(0,2*np.pi,(L,L))
+    if start == 'hot':
+        ltc = rng.uniform(0,2*np.pi,(L,L))
+    elif start == 'cold':
+        ltc = np.zeros((L,L),np.float64)
     # creazione array di energia e magnetizzazione di output
     en_out = np.zeros(samples,np.float64)
     magn_xy_out = np.zeros((samples,2),np.float64)
     # la configurazione viene termalizzata con termal step
     metro_loop_nosave(ltc,T,termal,L,rng,J)
     # loop di acquisizione delle quantità da misurare
-    for i in range(samples):
-        # distance step per ottenere un nuovo insieme di configurazioni
-        # scorrelate
-        metro_loop_nosave(ltc,T,distance,L,rng,J)
+    for i in range(samples-1):
         # len_sam step da cui si mediano l'energia e magnetizzazione
         e,mxy = metro_loop_savestate(ltc,T,len_sam,L,rng,J)
         en_out[i] = e.mean()
         magn_xy_out[i,0] = mxy[:,0].mean()
         magn_xy_out[i,1] = mxy[:,1].mean()
+        # distance step per ottenere un nuovo insieme di configurazioni
+        # scorrelate
+        metro_loop_nosave(ltc,T,distance,L,rng,J)
+    e,mxy = metro_loop_savestate(ltc,T,len_sam,L,rng,J)
+    en_out[-1] = e.mean()
+    magn_xy_out[-1,0] = mxy[:,0].mean()
+    magn_xy_out[-1,1] = mxy[:,1].mean()
     return en_out,magn_xy_out
 
+
+@jit()
+def size_test(rng):
+    T = 1.
+    L = 100 
+    # ltc = rng.uniform(0,2*np.pi,(L,L))
+    ltc = np.zeros((L,L),np.float64)
+    acc=0
+    for _ in range(1_000_000):
+        x,y = rng.integers(0,L,size=2)
+        t_o = ltc[x,y]
+        t_n = t_o + rng.uniform(-np.pi*1.3,np.pi*1.3)
+        # t_n = t_o + rng.normal(0,np.pi/6)
+        up = ltc[(x-1)%L,y]
+        down = ltc[(x+1)%L,y]
+        left = ltc[x,(y-1)%L]
+        right = ltc[x,(y+1)%L]
+        E_o = (np.cos(t_o-up)+np.cos(t_o-down)+
+                 np.cos(t_o-left)+np.cos(t_o-right))
+        E_n = (np.cos(t_n-up)+np.cos(t_n-down)+
+                 np.cos(t_n-left)+np.cos(t_n-right))
+        delta_E = E_n - E_o
+        if delta_E <= 0:
+            ltc[x,y] = t_n
+            acc+=1
+        elif (rng.uniform()<np.e**(-delta_E/T)):
+            ltc[x,y] = t_n
+            acc+=1
+
+    # for _ in range(5_000_000):
+    #     x,y = rng.integers(0,L,size=2)
+    #     t_o = ltc[x,y]
+    #     t_n = t_o + rng.uniform(-np.pi/1.4,np.pi/1.4)
+    #     up = ltc[(x-1)%L,y]
+    #     down = ltc[(x+1)%L,y]
+    #     left = ltc[x,(y-1)%L]
+    #     right = ltc[x,(y+1)%L]
+    #     E_o = (np.cos(t_o-up)+np.cos(t_o-down)+
+    #                 np.cos(t_o-left)+np.cos(t_o-right))
+    #     E_n = (np.cos(t_n-up)+np.cos(t_n-down)+
+    #                 np.cos(t_n-left)+np.cos(t_n-right))
+    #     delta_E = E_n - E_o
+    #     if delta_E <= 0:
+    #         ltc[x,y] = t_n
+    #         acc+=1
+    #     elif (rng.uniform()<np.e**(-delta_E/T)):
+    #         ltc[x,y] = t_n
+    #         acc+=1
+    print(acc/1_000_000)
 
 if __name__ == '__main__':
     L = 20
     T = 0.1
-    e,mxy = simul_sing(L,T,1000,RNG)
-    m = np.sqrt(mxy[:,0]**2+mxy[:,1]**2)
-    print(f'en media = {e.mean()/L**2:.4f}')
-    print(f'magn media = {m.mean()/L**2:.4f}')
-    cv = ((e**2).mean() - (e.mean())**2)/(L*T)**2
-    chi = ((m**2).mean() - (m.mean())**2)/(L**2*T)
-    print(f'C_v = {cv:.4f}')
-    print(f'Chi = {chi:.4f}')
+    size_test(RNG)
+    # e,mxy = simul_sing(L,T,1000,RNG)
+    # m = np.sqrt(mxy[:,0]**2+mxy[:,1]**2)
+    # print(f'en media = {e.mean()/L**2:.4f}')
+    # print(f'magn media = {m.mean()/L**2:.4f}')
+    # cv = ((e**2).mean() - (e.mean())**2)/(L*T)**2
+    # chi = ((m**2).mean() - (m.mean())**2)/(L**2*T)
+    # print(f'C_v = {cv:.4f}')
+    # print(f'Chi = {chi:.4f}')
