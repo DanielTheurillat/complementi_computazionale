@@ -14,6 +14,7 @@ def en_tot(ltc:array_2d_float64,
     """
     Calcolo dell'energia totale tramite semplice loop.
     Si considerano Periodic Boundary Conditions.
+    **Ritorna l'energia totale, non per sito**.
 
     :params ltc: Matrice della configurazione di cui si vuole 
         calcolare l'energia totale. Deve essere quadrata. Ogni 
@@ -67,7 +68,7 @@ def magn_tot_xy(ltc:array_2d_float64,L:int) -> tuple[float,float]:
 
 @jit()
 def metro_loop_savestate(ltc:array_2d_float64, T:float, steps:int,
-               L:int, rng:np.random.Generator, J:float=1.
+               L:int, d_theta:float, rng:np.random.Generator, J:float=1.
                ) -> tuple[array_1d_float64,array_2d_float64]:
     """
     Funzione che esegue il loop di update dell'algoritmo 
@@ -90,6 +91,10 @@ def metro_loop_savestate(ltc:array_2d_float64, T:float, steps:int,
     :params L: Larghezza del reticolo.
     :type L: int
 
+    :params d_theta: Larghezza della distribuzione uniforme
+        `[-d_theta, d_theta]` da cui si prende l'aggiornamento
+        random dell'angolo.
+
     :params rng: Generatore di numeri casuale di numpy.
     :type rng: Generator
 
@@ -108,13 +113,17 @@ def metro_loop_savestate(ltc:array_2d_float64, T:float, steps:int,
     mxy_vec = np.zeros((steps+1,2),np.float64)
     e_vec[0] = en_tot(ltc,L,J)
     mxy_vec[0] = magn_tot_xy(ltc,L)
+    # trovata in maniera empirica relazione tra temperatura e
+    # dimensione dell'intervallo da cui campionare la variazione
+    # random dello spin.
+    delta_step = T*3.63942381+0.82696942
     #loop di update della configurazione
     for i in range(1,steps+1):
         # estrazione di numeri casuali per quale posizione
         # aggiornare e di quanto cambiarla
         x,y = rng.integers(0,L,size=2)
         t_o = ltc[x,y]
-        t_n = t_o + rng.uniform(-np.pi/1.4,np.pi/1.4)
+        t_n = t_o + rng.uniform(-delta_step,delta_step)
         # calcolo dei vicini
         up = ltc[(x-1)%L,y]
         down = ltc[(x+1)%L,y]
@@ -143,7 +152,7 @@ def metro_loop_savestate(ltc:array_2d_float64, T:float, steps:int,
 
 @jit()
 def metro_loop_nosave(ltc:array_2d_float64, T:float, steps:int,
-               L:int, rng:np.random.Generator, J:float=1.
+               L:int, d_theta:float, rng:np.random.Generator, J:float=1.
                ) -> None:
     """
     Funzione che esegue il loop di update dell'algoritmo di Metropolis.
@@ -165,6 +174,10 @@ def metro_loop_nosave(ltc:array_2d_float64, T:float, steps:int,
     :params L: Larghezza del reticolo.
     :type L: int
 
+    :params d_theta: Larghezza della distribuzione uniforme
+        `[-d_theta, d_theta]` da cui si prende l'aggiornamento
+        random dell'angolo.
+
     :params rng: Generatore di numeri casuale di numpy.
     :type rng: Generator
 
@@ -173,10 +186,11 @@ def metro_loop_nosave(ltc:array_2d_float64, T:float, steps:int,
 
     :return: None
     """
+    delta_step = T*3.63942381+0.82696942
     for _ in range(steps):
         x,y = rng.integers(0,L,size=2)
         t_o = ltc[x,y]
-        t_n = t_o + rng.uniform(-np.pi/1.4,np.pi/1.4)
+        t_n = t_o + rng.uniform(-delta_step,delta_step)
         # t_n = t_o + rng.normal(0,np.pi/6)
         up = ltc[(x-1)%L,y]
         down = ltc[(x+1)%L,y]
@@ -252,18 +266,23 @@ def simul_sing(L:int, T:float, samples:int, rng:np.random.Generator,
     en_out = np.zeros(samples,np.float64)
     magn_xy_out = np.zeros((samples,2),np.float64)
     # la configurazione viene termalizzata con termal step
-    metro_loop_nosave(ltc,T,termal,L,rng,J)
+    # la larghezza dell'intervallo di campionamento è determinata
+    # da questa formula empirica ricavata tramite alcune simulazioni
+    d_theta = T*3.63942381+0.82696942
+    metro_loop_nosave(ltc,T,termal,L,d_theta,rng,J)
+    # nuova larghezza dopo la termalizzazione
+    d_theta = T*2.89484825+0.61290291
     # loop di acquisizione delle quantità da misurare
     for i in range(samples-1):
         # len_sam step da cui si mediano l'energia e magnetizzazione
-        e,mxy = metro_loop_savestate(ltc,T,len_sam,L,rng,J)
+        e,mxy = metro_loop_savestate(ltc,T,len_sam,L,d_theta,rng,J)
         en_out[i] = e.mean()
         magn_xy_out[i,0] = mxy[:,0].mean()
         magn_xy_out[i,1] = mxy[:,1].mean()
         # distance step per ottenere un nuovo insieme di configurazioni
         # scorrelate
-        metro_loop_nosave(ltc,T,distance,L,rng,J)
-    e,mxy = metro_loop_savestate(ltc,T,len_sam,L,rng,J)
+        metro_loop_nosave(ltc,T,distance,L,d_theta,rng,J)
+    e,mxy = metro_loop_savestate(ltc,T,len_sam,L,d_theta,rng,J)
     en_out[-1] = e.mean()
     magn_xy_out[-1,0] = mxy[:,0].mean()
     magn_xy_out[-1,1] = mxy[:,1].mean()
@@ -272,15 +291,38 @@ def simul_sing(L:int, T:float, samples:int, rng:np.random.Generator,
 
 @jit()
 def size_test(rng):
-    T = 1.
+    T = 0.89
     L = 100 
     # ltc = rng.uniform(0,2*np.pi,(L,L))
     ltc = np.zeros((L,L),np.float64)
     acc=0
-    for _ in range(1_000_000):
+    step = 200
+    tot = step*L**2
+    # per termalizzazione
+    delta_step = T*3.63942381+0.82696942
+    for _ in range(L**2*100):
         x,y = rng.integers(0,L,size=2)
         t_o = ltc[x,y]
-        t_n = t_o + rng.uniform(-np.pi*1.3,np.pi*1.3)
+        t_n = t_o + rng.uniform(-delta_step,delta_step)
+        # t_n = t_o + rng.normal(0,np.pi/6)
+        up = ltc[(x-1)%L,y]
+        down = ltc[(x+1)%L,y]
+        left = ltc[x,(y-1)%L]
+        right = ltc[x,(y+1)%L]
+        E_o = (np.cos(t_o-up)+np.cos(t_o-down)+
+                 np.cos(t_o-left)+np.cos(t_o-right))
+        E_n = (np.cos(t_n-up)+np.cos(t_n-down)+
+                 np.cos(t_n-left)+np.cos(t_n-right))
+        delta_E = E_n - E_o
+        if delta_E <= 0:
+            ltc[x,y] = t_n
+        elif (rng.uniform()<np.e**(-delta_E/T)):
+            ltc[x,y] = t_n
+    delta_step = T*2.89484825+0.61290291
+    for _ in range(tot):
+        x,y = rng.integers(0,L,size=2)
+        t_o = ltc[x,y]
+        t_n = t_o + rng.uniform(-delta_step,delta_step)
         # t_n = t_o + rng.normal(0,np.pi/6)
         up = ltc[(x-1)%L,y]
         down = ltc[(x+1)%L,y]
@@ -297,27 +339,7 @@ def size_test(rng):
         elif (rng.uniform()<np.e**(-delta_E/T)):
             ltc[x,y] = t_n
             acc+=1
-
-    # for _ in range(5_000_000):
-    #     x,y = rng.integers(0,L,size=2)
-    #     t_o = ltc[x,y]
-    #     t_n = t_o + rng.uniform(-np.pi/1.4,np.pi/1.4)
-    #     up = ltc[(x-1)%L,y]
-    #     down = ltc[(x+1)%L,y]
-    #     left = ltc[x,(y-1)%L]
-    #     right = ltc[x,(y+1)%L]
-    #     E_o = (np.cos(t_o-up)+np.cos(t_o-down)+
-    #                 np.cos(t_o-left)+np.cos(t_o-right))
-    #     E_n = (np.cos(t_n-up)+np.cos(t_n-down)+
-    #                 np.cos(t_n-left)+np.cos(t_n-right))
-    #     delta_E = E_n - E_o
-    #     if delta_E <= 0:
-    #         ltc[x,y] = t_n
-    #         acc+=1
-    #     elif (rng.uniform()<np.e**(-delta_E/T)):
-    #         ltc[x,y] = t_n
-    #         acc+=1
-    print(acc/1_000_000)
+    print(acc/tot)
 
 if __name__ == '__main__':
     L = 20
