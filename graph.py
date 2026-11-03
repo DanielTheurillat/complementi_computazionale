@@ -44,10 +44,10 @@ def en_magn_on_steps(L,T,steps,start,ax1:Axes,ax2:Axes):
 
 if __name__ == '__main__':
     # L = 20
-    T = 0.2
+    T = 4
     fig, ax1 = plt.subplots()
     for i in range(3,8):
-        ax1 = enr_on_steps(2**i,T,10000,'hot',ax1)
+        ax1 = enr_on_steps(2**i,T,500,'hot',ax1)
     ax1.grid()    
     ax1.legend(loc='upper right')
     ax1.set_xlabel('Numero di update / L^2')

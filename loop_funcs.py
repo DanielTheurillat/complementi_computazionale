@@ -290,7 +290,7 @@ def simul_sing(L:int, T:float, samples:int, rng:np.random.Generator,
 
 
 @jit()
-def size_test(rng):
+def __size_test(rng):
     T = 0.89
     L = 100 
     # ltc = rng.uniform(0,2*np.pi,(L,L))
@@ -344,7 +344,7 @@ def size_test(rng):
 if __name__ == '__main__':
     L = 20
     T = 0.1
-    size_test(RNG)
+    __size_test(RNG)
     # e,mxy = simul_sing(L,T,1000,RNG)
     # m = np.sqrt(mxy[:,0]**2+mxy[:,1]**2)
     # print(f'en media = {e.mean()/L**2:.4f}')
