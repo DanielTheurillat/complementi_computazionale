@@ -69,9 +69,9 @@ if __name__ == '__main__':
     T = 2
     fig, (ax1,ax2) = plt.subplots(2,1,sharex=True, gridspec_kw={'hspace':0.2})
     for i in range(3,8):
-        ax1,ax2 = en_magn_on_steps(2**i,T,500,'cold',ax1,ax2)
+        ax1,ax2 = en_magn_on_steps(2**i,T,500,'hot',ax1,ax2)
     ax1.grid()    
-    ax1.legend(loc='lower right')
+    ax1.legend(loc='upper right')
     # ax1.set_xlabel('Numero di update / L^2')
     ax1.set_ylabel('Energia per sito',fontsize='x-large')
     ax1.set_title(f'Andamento dell\'energia con T = {T}',fontsize='xx-large')
