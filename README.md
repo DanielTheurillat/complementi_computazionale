@@ -26,4 +26,10 @@ Qui di seguito sono riportati vari grafici dell'energia e della magnetizzazione.
 
 ### *Cold Start*
 
-<img src=assets/images/en_magn_cold_T02.png width=50%>
+![Andamento di energia e magnetizzazione per T=0.2](assets/images/en_magn_cold_T02.png)
+
+![Andamento di energia e magnetizzazione per T=0.5](assets/images/en_magn_cold_T05.png)
+
+![Andamento di energia e magnetizzazione per T=1](assets/images/en_magn_cold_T1.png)
+
+![Andamento di energia e magnetizzazione per T=2](assets/images/en_magn_cold_T2.png)
