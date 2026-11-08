@@ -2,6 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from timeit import timeit
 from numba import jit,prange
+from numpy.random import Generator
+
 import loop_funcs as lf
 
 
@@ -69,7 +71,7 @@ def susc_magn(magn_vec:np.ndarray,T:float,n_t:int=0):
 
 @jit()
 def MC_step(ltc:np.ndarray, T:float, J:float=1,
-            rng:np.random.Generator=rng):
+            rng:Generator=rng):
     L = ltc.shape[0]
     x,y = rng.integers(0,L,size=2)
     delta_theta = rng.normal(0,np.pi/10)   #rng.uniform(-np.pi/4,np.pi/4)
@@ -97,7 +99,7 @@ def _main(L:int,T:float=1,steps:int=1_000_000,J:float=1,rng=rng):
     return en_vec1,mxy_vec
 
 @jit()
-def nuovo(L:int,T:float,steps:int,rng:np.random.Generator,J:float=1.):
+def nuovo(L:int,T:float,steps:int,rng:Generator,J:float=1.):
     ltc = rng.uniform(0, 2*np.pi, (L,L))
     e = np.zeros(steps+1,np.float64)
     mxy = np.zeros((steps+1,2),np.float64)
@@ -131,7 +133,7 @@ def nuovo(L:int,T:float,steps:int,rng:np.random.Generator,J:float=1.):
 
 @jit(parallel=False)
 def sweep_Temp(L:int,T_vec:np.ndarray,steps:int,
-               rng:np.random.Generator,n_taglio:int=0,J:float=1.):
+               rng:Generator,n_taglio:int=0,J:float=1.):
     n_T = T_vec.size
     e = np.zeros((n_T,steps+1),np.float64)
     mxy = np.zeros((n_T,steps+1,2),np.float64)
@@ -149,7 +151,7 @@ def sweep_Temp(L:int,T_vec:np.ndarray,steps:int,
     return e,mxy,e_out,m_out,cv_out,susc_out
 
 @jit()
-def termal_prova(ltc,T,steps,L,rng:np.random.Generator,J=1.):
+def termal_prova(ltc,T,steps,L,rng:Generator,J=1.):
     x_v = np.arange(L)
     y_v = np.arange(L)
     e = np.zeros(steps,dtype=np.float64)

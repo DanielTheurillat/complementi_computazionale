@@ -1,6 +1,7 @@
 import numpy as np
 from numba import jit,prange
 from typing import Literal
+from numpy.random import Generator
 
 array_2d_float64 = np.ndarray[tuple[int,int],np.dtype[np.float64]]
 array_1d_float64 = np.ndarray[tuple[int],np.dtype[np.float64]]
@@ -68,7 +69,7 @@ def magn_tot_xy(ltc:array_2d_float64,L:int) -> tuple[float,float]:
 
 @jit()
 def metro_loop_savestate(ltc:array_2d_float64, T:float, steps:int,
-               L:int, d_theta:float, rng:np.random.Generator, J:float=1.
+               L:int, d_theta:float, rng:Generator, J:float=1.
                ) -> tuple[array_1d_float64,array_2d_float64]:
     """
     Funzione che esegue il loop di update dell'algoritmo 
@@ -152,7 +153,7 @@ def metro_loop_savestate(ltc:array_2d_float64, T:float, steps:int,
 
 @jit()
 def metro_loop_nosave(ltc:array_2d_float64, T:float, steps:int,
-               L:int, d_theta:float, rng:np.random.Generator, J:float=1.
+               L:int, d_theta:float, rng:Generator, J:float=1.
                ) -> None:
     """
     Funzione che esegue il loop di update dell'algoritmo di Metropolis.
@@ -209,7 +210,7 @@ def metro_loop_nosave(ltc:array_2d_float64, T:float, steps:int,
 
 
 @jit()
-def simul_sing(L:int, T:float, samples:int, rng:np.random.Generator,
+def simul_sing(L:int, T:float, samples:int, rng:Generator,
                len_sam:int = 10_000, distance:int = 10_000,
                start:Literal['hot','cold']='hot',
                termal:int = 500_000, J:float = 1.

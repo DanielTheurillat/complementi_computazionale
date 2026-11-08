@@ -22,4 +22,8 @@ infatti sono possibili due configurazioni iniziali: *hot start* e *cold start*. 
 intende una configurazione iniziale in cui tutti gli spin sono scelti in maniera randomica. Invece
 per *cold start* si intende invece una configurazione iniziale in cui tutti gli spin sono allineati
 ad una data direzione.<br>
-Qui di seguito sono riportati vari grafici dell'energia 
+Qui di seguito sono riportati vari grafici dell'energia e della magnetizzazione.
+
+### *Cold Start*
+
+<img src=assets/images/en_magn_cold_T02.png width=50%>
