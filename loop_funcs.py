@@ -68,7 +68,7 @@ def magn_tot_xy(ltc:array_2d_float64,L:int) -> tuple[float,float]:
 
 
 @jit()
-def metro_loop_savestate(ltc:array_2d_float64, T:float, steps:int,
+def metro_savestate(ltc:array_2d_float64, T:float, steps:int,
                L:int, d_theta:float, rng:Generator, J:float=1.
                ) -> tuple[array_1d_float64,array_2d_float64]:
     """
@@ -117,14 +117,16 @@ def metro_loop_savestate(ltc:array_2d_float64, T:float, steps:int,
     # trovata in maniera empirica relazione tra temperatura e
     # dimensione dell'intervallo da cui campionare la variazione
     # random dello spin.
-    delta_step = T*3.63942381+0.82696942
+    
+    # delta_step = T*3.63942381+0.82696942
+
     #loop di update della configurazione
     for i in range(1,steps+1):
         # estrazione di numeri casuali per quale posizione
         # aggiornare e di quanto cambiarla
         x,y = rng.integers(0,L,size=2)
         t_o = ltc[x,y]
-        t_n = t_o + rng.uniform(-delta_step,delta_step)
+        t_n = t_o + rng.uniform(-d_theta,d_theta)
         # calcolo dei vicini
         up = ltc[(x-1)%L,y]
         down = ltc[(x+1)%L,y]
@@ -152,7 +154,7 @@ def metro_loop_savestate(ltc:array_2d_float64, T:float, steps:int,
     return e_vec.cumsum(),mxy_vec.cumsum(0)
 
 @jit()
-def metro_loop_nosave(ltc:array_2d_float64, T:float, steps:int,
+def metro_nosave(ltc:array_2d_float64, T:float, steps:int,
                L:int, d_theta:float, rng:Generator, J:float=1.
                ) -> None:
     """
@@ -187,11 +189,11 @@ def metro_loop_nosave(ltc:array_2d_float64, T:float, steps:int,
 
     :return: None
     """
-    delta_step = T*3.63942381+0.82696942
+    # delta_step = T*3.63942381+0.82696942
     for _ in range(steps):
         x,y = rng.integers(0,L,size=2)
         t_o = ltc[x,y]
-        t_n = t_o + rng.uniform(-delta_step,delta_step)
+        t_n = t_o + rng.uniform(-d_theta,d_theta)
         # t_n = t_o + rng.normal(0,np.pi/6)
         up = ltc[(x-1)%L,y]
         down = ltc[(x+1)%L,y]
@@ -210,18 +212,18 @@ def metro_loop_nosave(ltc:array_2d_float64, T:float, steps:int,
 
 
 @jit()
-def simul_sing(L:int, T:float, samples:int, rng:Generator,
-               len_sam:int = 10_000, distance:int = 10_000,
-               start:Literal['hot','cold']='hot',
-               termal:int = 500_000, J:float = 1.
+def run_single(L:int, T:float, samples:int, rng:Generator,
+               start:Literal['cold','hot'] = 'cold', J:float = 1.,
+               termal:int = 1000, len_samp:int = 1,
+               separation:int = 3,
                ) -> tuple[array_1d_float64,array_2d_float64]:
     """
-    Funzione che esegue una simulazione intera di una configurazione
-    di una data grandezza e ad una data temperatura.
-    L'energia e la magnetizzazione vengono prese mediando `len_sam`
-    configurazioni successive. Tra ogni acquisizione passano
-    `distance` step per scorrelare le configurazioni. Prima
-    di iniziare le misurazioni passano `termal` step di termalizzazione.
+    Funzione che esegue una simulazione intera di una 
+    configurazione di una data grandezza e ad una data 
+    temperatura. L'energia e la magnetizzazione vengono
+    mediate su uno step intero, saltando di 3 step per
+    ogni `samples`, in modo da scorrelare le configurazioni.
+    Il tempo di termalizzazione è 1000 steps.
 
     :params L: Larghezza del reticolo.
     :type L: int
@@ -235,34 +237,43 @@ def simul_sing(L:int, T:float, samples:int, rng:Generator,
     :params rng: Generatore di numeri casuale da usare.
     :type rng: Generator
 
-    :params len_sam: Numero di passi da cui mediare i valori
-        di energia e magnetizzazione per una misura singola.
-        Default 10_000.
-    :type len_sam: int
-    
-    :params distance: Numero di passi tra l'inizio di una misura 
-        ed un'altra, in maniera tale da ottenere configurazioni
-        scorrelate. Default 10_000.
-    :type distance: int
-
-    :params termal: Numero di step di termalizzazione.
-        default 500_000.
-    :type termal: int
+    :params start: Tipo di configurazione di partenza.
+        Default `'cold'` ovvero spin tutti allineati
+        ad una direzione randomica. Altrimenti `'hot'`
+        ovvero spin distribuiti uniformemente.
+    :type start: 'cold','hot'
 
     :params J: Costante di coupling del modello. Default 1.0.
     :type J: float
 
+    :params termal: Numero di step di termalizzazione.
+        default 1000.
+    :type termal: int
+
+    :params len_samp: Numero step da cui mediare i valori
+        di energia e magnetizzazione per una misura singola.
+        Default 1.
+    :type len_samp: int
+
+    :params separation: Numero di steps da lasciare tra misure
+        successive. Default 3.
+
+        
     :return en_out, magn_xy_out: Valori dell'energia e della 
         magnetizzazione lungo i due assi. L'array `en_out`
         ha dimensione `(samples)`. L'array `magn_xy_out` ha
         dimensioni `(samples,2)`.
-    :return type: ndarray,ndarray
+    :return type: ndarray, ndarray
     """
     # creazione array di spin
     if start == 'hot':
         ltc = rng.uniform(0,2*np.pi,(L,L))
     elif start == 'cold':
-        ltc = np.zeros((L,L),np.float64)
+        ltc = np.ones((L,L),np.float64)*rng.uniform(0,2*np.pi)
+    else:
+        print('Start scelto non esistente, scegliere hot oppure cold')
+        return
+    L2 = L**2
     # creazione array di energia e magnetizzazione di output
     en_out = np.zeros(samples,np.float64)
     magn_xy_out = np.zeros((samples,2),np.float64)
@@ -270,24 +281,27 @@ def simul_sing(L:int, T:float, samples:int, rng:Generator,
     # la larghezza dell'intervallo di campionamento è determinata
     # da questa formula empirica ricavata tramite alcune simulazioni
     d_theta = T*3.63942381+0.82696942
-    metro_loop_nosave(ltc,T,termal,L,d_theta,rng,J)
+    metro_nosave(ltc,T,termal*L2,L,d_theta,rng,J)
+
     # nuova larghezza dopo la termalizzazione
     d_theta = T*2.89484825+0.61290291
     # loop di acquisizione delle quantità da misurare
-    for i in range(samples-1):
-        # len_sam step da cui si mediano l'energia e magnetizzazione
-        e,mxy = metro_loop_savestate(ltc,T,len_sam,L,d_theta,rng,J)
+    for i in range(samples):
+        # separation step per ottenere un nuovo insieme di configurazioni
+        # scorrelate
+        metro_nosave(ltc,T,separation*L2,L,d_theta,rng,J)
+
+        # len_samp step da cui si mediano l'energia e magnetizzazione
+        e,mxy = metro_savestate(ltc,T,len_samp*L2,L,d_theta,rng,J)
         en_out[i] = e.mean()
         magn_xy_out[i,0] = mxy[:,0].mean()
-        magn_xy_out[i,1] = mxy[:,1].mean()
-        # distance step per ottenere un nuovo insieme di configurazioni
-        # scorrelate
-        metro_loop_nosave(ltc,T,distance,L,d_theta,rng,J)
-    e,mxy = metro_loop_savestate(ltc,T,len_sam,L,d_theta,rng,J)
-    en_out[-1] = e.mean()
-    magn_xy_out[-1,0] = mxy[:,0].mean()
-    magn_xy_out[-1,1] = mxy[:,1].mean()
+        magn_xy_out[i,1] = mxy[:,1].mean()    
     return en_out,magn_xy_out
+
+
+@jit()
+def run_and_elaborate():
+    return
 
 
 @jit()

@@ -23,7 +23,7 @@ def enr_calc_term(L,T,steps,start,rng:Generator,J=1.):
     # d_theta = T*2.89484825+0.61290291
     # d_theta = np.pi/4
     for i in range(steps):
-        lf.metro_loop_nosave(ltc,T,L**2,L,d_theta,rng,J)
+        lf.metro_nosave(ltc,T,L**2,L,d_theta,rng,J)
         en[i+1] = lf.en_tot(ltc,L,J)
     return en/L**2
 
@@ -42,7 +42,7 @@ def enr_magn_calc_term(L,T,steps,start,rng:Generator,J=1.):
     mxy[0] = lf.magn_tot_xy(ltc,L)
     d_theta = T*3.63942381+0.82696942
     for i in range(steps):
-        lf.metro_loop_nosave(ltc, T, L**2,L,d_theta,rng,J)
+        lf.metro_nosave(ltc, T, L**2,L,d_theta,rng,J)
         en[i+1] = lf.en_tot(ltc,L,J)
         mxy[i+1] = lf.magn_tot_xy(ltc,L)
     en = en/L**2
