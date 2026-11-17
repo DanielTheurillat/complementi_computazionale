@@ -68,14 +68,14 @@ def magn_tot_xy(ltc:array_2d_float64,L:int) -> tuple[float,float]:
 
 
 @jit()
-def metro_savestate(ltc:array_2d_float64, T:float, steps:int,
+def metro_savestate(ltc:array_2d_float64, T:float, num_update:int,
                L:int, d_theta:float, rng:Generator, J:float=1.
                ) -> tuple[array_1d_float64,array_2d_float64]:
     """
     Funzione che esegue il loop di update dell'algoritmo 
     di Metropolis. L'update sull'array viene eseguito come effetto
     collaterale della funzione. Fornisce in output vettori contenenti
-     la variazione dell'energia e magnetizzazione ad ogni step.
+    la variazione dell'energia e magnetizzazione ad ogni step.
 
     :params ltc: Matrice della configurazione a cui si vuole 
         applicare l'update di Metropolis. Deve essere quadrata.
@@ -103,15 +103,16 @@ def metro_savestate(ltc:array_2d_float64, T:float, steps:int,
     :type J: float
 
     :return: e_vec,mxy_vec.
-        Ritorna i vettori contenenti le differenze di energia e
-        di magnetizzazione(lungo i due assi x e y) dovute alla
-        variazione della configurazione degli spin.
+        Ritorna i vettori contenenti l'energia e la 
+        magnetizzazione(lungo i due assi x e y) ad
+        ogni update. Hanno dimensione `num_update`,
+        `num_update,2`.
     :rtype: ndarry,ndarry
     """
     # Creazione dei vettori per registrare l'energia
     # e la magnetizzazione
-    e_vec = np.zeros(steps+1,np.float64)
-    mxy_vec = np.zeros((steps+1,2),np.float64)
+    e_vec = np.zeros(num_update+1,np.float64)
+    mxy_vec = np.zeros((num_update+1,2),np.float64)
     e_vec[0] = en_tot(ltc,L,J)
     mxy_vec[0] = magn_tot_xy(ltc,L)
     # trovata in maniera empirica relazione tra temperatura e
@@ -121,7 +122,7 @@ def metro_savestate(ltc:array_2d_float64, T:float, steps:int,
     # delta_step = T*3.63942381+0.82696942
 
     #loop di update della configurazione
-    for i in range(1,steps+1):
+    for i in range(1,num_update+1):
         # estrazione di numeri casuali per quale posizione
         # aggiornare e di quanto cambiarla
         x,y = rng.integers(0,L,size=2)
@@ -260,7 +261,7 @@ def run_single(L:int, T:float, samples:int, rng:Generator,
 
         
     :return en_out, magn_xy_out: Valori dell'energia e della 
-        magnetizzazione lungo i due assi. L'array `en_out`
+        magnetizzazione totali lungo i due assi. L'array `en_out`
         ha dimensione `(samples)`. L'array `magn_xy_out` ha
         dimensioni `(samples,2)`.
     :return type: ndarray, ndarray
@@ -300,8 +301,26 @@ def run_single(L:int, T:float, samples:int, rng:Generator,
 
 
 @jit()
-def run_and_elaborate():
-    return
+def run_and_elaborate(L:int, T:float, samples:int,
+            rng:Generator, start:Literal['cold','hot'] = 'cold',
+            J:float = 1., termal:int = 1000, len_samp:int = 1,
+            separation:int = 3,
+            ) -> array_1d_float64:
+    """
+    Wrapper della funzione `run_single` che restituisce
+    direttamente i valori calcolati di energia e sua std,
+    magnetizzazione e sua std, suscettività e calore specifico.
+    """
+    out = np.zeros(6,np.float64)
+    en, mxy = run_single(L,T,samples,rng,start,J,termal,len_samp,separation)
+    m = np.sqrt(mxy[:,0]**2+mxy[:,1]**2)
+    out[0] = (en/L**2).mean()
+    out[1] = (en/L**2).std()
+    out[2] = (m/L**2).mean()
+    out[3] = (m/L**2).std()
+    out[4] = ((en**2).mean()-en.mean()**2)/(L*T)**2
+    out[5] = ((m**2).mean()-m.mean()**2)/(T*L**2)
+    return out
 
 
 @jit()

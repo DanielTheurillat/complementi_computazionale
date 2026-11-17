@@ -6,6 +6,11 @@ from numpy.random import Generator
 
 import loop_funcs as lf
 
+"""
+Questo file è usato come prova e testing di
+vari codici e possibili algoritmi.
+"""
+
 
 rng = np.random.default_rng(35413456768)
 
@@ -186,48 +191,4 @@ def termal_prova(ltc,T,steps,L,rng:Generator,J=1.):
 if __name__=="__main__":
     L=20
     T=0.1
-    # e,mxy = nuovo(L,T,1_000_000,rng)
-    # m = np.sqrt(mxy[:,0]**2+mxy[:,1]**2)
-    # plt.plot(e)
-    # plt.plot(m)
-    # T_vec = np.linspace(0.01,1.5,20)
-    # e,mxy,e_m,m_m,cv,chi = sweep_Temp(L,T_vec,2_000_000,rng,500_000)
-    # print(e_m,m_m,cv,chi)
-    # plt.plot(T_vec,np.stack((e_m,m_m,cv,chi),axis=1))
-    # # plt.plot(T_vec,m_m)
-
-    # # plt.plot(m)
-    # # plt.plot(e)
-    # plt.grid()
-    # plt.show()
-
-    # loop_funcs.simul_sing(L,T,1,rng,10,10,10)
-
-    # print(timeit(lambda: loop_funcs.simul_sing(L,T,100,rng),number=10))
-
-
-    # print('m5',timeit.timeit(lambda: testm5(asd.copy(),10000,rng),number=1))
-    # T=0.2
-    # ltc = rng.uniform(0,2*np.pi,(L,L))
-    # termal_prova(ltc,T,1,L,rng)
-    # lf.metro_loop_savestate(ltc,T,1,L,rng)
-    # print(timeit(lambda: lf.metro_loop_savestate(rng.uniform(0,2*np.pi,(L,L)),
-    #             T,400_000,L,rng),number=100))
-    # fig,(ax1,ax2) = plt.subplots(1,2)
-    # for i in range(3,9):
-    #     # ltc = rng.uniform(0,2*np.pi,(2**i,2**i))
-    #     ltc = np.ones((2**i,2**i),np.float64)
-    #     e,m = termal_prova(ltc,T,4000,2**i,rng)
-    #     # e,m = lf.metro_loop_savestate(ltc,T,2_000_000,2**i,rng)
-    #     ax1.plot(e/4**i,label=f'L = {2**i}')
-    #     ax2.plot(np.sqrt(m[:,0]**2+m[:,1]**2)/4**i,
-    #         label=f'L = {2**i}')
-    # plt.grid()
-    # plt.xlabel('Steps')
-    # plt.ylabel('Energia per sito')
-    # plt.title('Termalizzazione con T=0.2 da hot start\n' \
-    # 'per diverse grandezze del reticolo')
-    # plt.legend(loc='upper right')
-    # plt.tight_layout()
-    # plt.show()
-    # if (int(input('save?\n'))==1): plt.savefig('assets/term_comp_T0,2.png',dpi=400)
+    print(lf.run_and_elaborate(L,T,20_000,rng,termal=5000))
